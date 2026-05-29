@@ -1,0 +1,80 @@
+package expo.modules.appdetector
+
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * Lightweight persistence for the monitor. Survives the JS engine being killed,
+ * so detected app-opens are buffered until the BettrMind app next reads them.
+ */
+object Prefs {
+  private const val NAME = "bettrmind_app_detector"
+  private const val MAX_PENDING = 300
+
+  private fun p(ctx: Context) = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+
+  fun setTriggers(ctx: Context, json: String) {
+    p(ctx).edit().putString("triggers", json).apply()
+  }
+
+  fun getTriggers(ctx: Context): String = p(ctx).getString("triggers", "[]") ?: "[]"
+
+  fun setMonitoring(ctx: Context, value: Boolean) {
+    p(ctx).edit().putBoolean("monitoring", value).apply()
+  }
+
+  fun isMonitoring(ctx: Context): Boolean = p(ctx).getBoolean("monitoring", false)
+
+  fun getPending(ctx: Context): String = p(ctx).getString("pending", "[]") ?: "[]"
+
+  fun clearPending(ctx: Context) {
+    p(ctx).edit().putString("pending", "[]").apply()
+  }
+
+  @Synchronized
+  fun addPending(
+    ctx: Context,
+    pkg: String,
+    appName: String,
+    category: String,
+    isTrigger: Boolean
+  ) {
+    val arr = try {
+      JSONArray(getPending(ctx))
+    } catch (e: Exception) {
+      JSONArray()
+    }
+    val o = JSONObject()
+    o.put("packageName", pkg)
+    o.put("appName", appName)
+    o.put("category", category)
+    o.put("isTrigger", isTrigger)
+    o.put("at", System.currentTimeMillis())
+    arr.put(o)
+
+    val out = if (arr.length() > MAX_PENDING) {
+      val trimmed = JSONArray()
+      for (i in arr.length() - MAX_PENDING until arr.length()) trimmed.put(arr.get(i))
+      trimmed
+    } else {
+      arr
+    }
+    p(ctx).edit().putString("pending", out.toString()).apply()
+  }
+
+  fun setLaunchTrigger(ctx: Context, pkg: String, appName: String, category: String) {
+    val o = JSONObject()
+    o.put("packageName", pkg)
+    o.put("appName", appName)
+    o.put("category", category)
+    o.put("at", System.currentTimeMillis())
+    p(ctx).edit().putString("launchTrigger", o.toString()).apply()
+  }
+
+  fun getLaunchTrigger(ctx: Context): String = p(ctx).getString("launchTrigger", "") ?: ""
+
+  fun clearLaunchTrigger(ctx: Context) {
+    p(ctx).edit().remove("launchTrigger").apply()
+  }
+}

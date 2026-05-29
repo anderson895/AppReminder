@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, AppState, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, Redirect } from 'expo-router';
@@ -7,45 +7,77 @@ import { useRouter, Redirect } from 'expo-router';
 import { colors, radius, spacing } from '../src/theme';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
-import { setMonitoringGranted } from '../src/db/database';
-
-interface PermItem {
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  title: string;
-  desc: string;
-}
-
-const PERMISSIONS: PermItem[] = [
-  {
-    icon: 'eye-check-outline',
-    title: 'Usage access',
-    desc: 'Lets BettrMind see which app is currently open so it can recognise a monitored gambling or financial app.',
-  },
-  {
-    icon: 'application-outline',
-    title: 'Display over other apps',
-    desc: 'Lets the reminder appear on top of the app you opened, before you continue.',
-  },
-];
+import { setMonitoringGranted, getEnabledTriggerApps } from '../src/db/database';
+import {
+  detectionAvailable,
+  hasUsageAccess,
+  openUsageAccessSettings,
+  hasOverlayPermission,
+  openOverlaySettings,
+  startMonitoring,
+} from '../src/native/detector';
 
 export default function Permission() {
   const router = useRouter();
   const { user } = useAuth();
+  const [usageOk, setUsageOk] = useState(false);
+  const [overlayOk, setOverlayOk] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(() => {
+    if (detectionAvailable) {
+      setUsageOk(hasUsageAccess());
+      setOverlayOk(hasOverlayPermission());
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') refresh();
+    });
+    return () => sub.remove();
+  }, [refresh]);
 
   if (!user) return <Redirect href="/login" />;
 
-  const onAllow = async () => {
+  const finish = async (): Promise<void> => {
     if (busy) return;
     setBusy(true);
-    // In the native dev build this is where we deep-link to Android's
-    // "Usage access" / "Display over other apps" settings screens and verify
-    // the grant. In Expo Go we record the user's in-app consent.
     await setMonitoringGranted(user.id, true);
+    if (detectionAvailable) {
+      const apps = await getEnabledTriggerApps();
+      startMonitoring(apps);
+    }
     router.replace('/dashboard');
   };
 
-  const onSkip = () => router.replace('/dashboard');
+  const skip = () => router.replace('/dashboard');
+
+  // In Expo Go there is no native module — record consent only, explain the limit.
+  if (!detectionAvailable) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.iconCircle}>
+            <MaterialCommunityIcons name="shield-account" size={44} color={colors.onTeal} />
+          </View>
+          <Text style={styles.title}>enable app monitoring</Text>
+          <Text style={styles.subtitle}>
+            Real background detection runs only in the installed BettrMind app. In this
+            preview the permission step is recorded so the flow is complete.
+          </Text>
+          <PrimaryButton
+            label="allow & continue"
+            onPress={finish}
+            disabled={busy}
+            style={{ marginTop: spacing(3) }}
+          />
+          <OutlineButton label="not now" onPress={skip} style={{ marginTop: spacing(1.5) }} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -53,31 +85,29 @@ export default function Permission() {
         <View style={styles.iconCircle}>
           <MaterialCommunityIcons name="shield-account" size={44} color={colors.onTeal} />
         </View>
-
         <Text style={styles.title}>enable app monitoring</Text>
         <Text style={styles.subtitle}>
-          For BettrMind to remind you before you open a gambling or financial app, it
-          needs permission to monitor which apps you open.
+          BettrMind needs these so it can notice when you open a gambling or financial
+          app and remind you before you continue.
         </Text>
 
-        {PERMISSIONS.map((p) => (
-          <View key={p.title} style={styles.permCard}>
-            <View style={styles.permIcon}>
-              <MaterialCommunityIcons name={p.icon} size={22} color={colors.teal} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.permTitle}>{p.title}</Text>
-              <Text style={styles.permDesc}>{p.desc}</Text>
-            </View>
-          </View>
-        ))}
+        <PermRow
+          icon="eye-check-outline"
+          title="Usage access"
+          desc="See which app is currently open."
+          granted={usageOk}
+          onPress={openUsageAccessSettings}
+        />
+        <PermRow
+          icon="application-outline"
+          title="Display over other apps"
+          desc="Show the reminder on top of the opened app."
+          granted={overlayOk}
+          onPress={openOverlaySettings}
+        />
 
         <View style={styles.notice}>
-          <MaterialCommunityIcons
-            name="lock-check-outline"
-            size={18}
-            color={colors.textMuted}
-          />
+          <MaterialCommunityIcons name="lock-check-outline" size={18} color={colors.textMuted} />
           <Text style={styles.noticeText}>
             BettrMind only checks the app you open against the monitored list. It never
             reads your messages, transactions, or balances.
@@ -85,21 +115,56 @@ export default function Permission() {
         </View>
 
         <PrimaryButton
-          label={busy ? 'enabling…' : 'allow monitoring'}
-          onPress={onAllow}
-          disabled={busy}
+          label={busy ? 'enabling…' : usageOk ? 'enable & continue' : 'grant Usage access first'}
+          onPress={finish}
+          disabled={busy || !usageOk}
           style={{ marginTop: spacing(3) }}
         />
-        <OutlineButton
-          label="not now"
-          onPress={onSkip}
-          style={{ marginTop: spacing(1.5) }}
-        />
+        <OutlineButton label="not now" onPress={skip} style={{ marginTop: spacing(1.5) }} />
         <Text style={styles.footNote}>
-          You can change this anytime. Reminders won't work until monitoring is allowed.
+          Reminders won't trigger until at least Usage access is granted.
         </Text>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function PermRow({
+  icon,
+  title,
+  desc,
+  granted,
+  onPress,
+}: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  title: string;
+  desc: string;
+  granted: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <View style={styles.permCard}>
+      <View style={styles.permIcon}>
+        <MaterialCommunityIcons name={icon} size={22} color={colors.teal} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.permTitle}>{title}</Text>
+        <Text style={styles.permDesc}>{desc}</Text>
+      </View>
+      {granted ? (
+        <View style={styles.grantedPill}>
+          <MaterialCommunityIcons name="check" size={16} color={colors.onTeal} />
+        </View>
+      ) : (
+        <Pressable
+          onPress={onPress}
+          android_ripple={{ color: 'rgba(47,227,168,0.25)', borderless: false }}
+          style={styles.grantBtn}
+        >
+          <Text style={styles.grantBtnText}>grant</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -117,12 +182,7 @@ const styles = StyleSheet.create({
     marginTop: spacing(2),
     marginBottom: spacing(2),
   },
-  title: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
+  title: { color: colors.text, fontSize: 24, fontWeight: '800', textAlign: 'center' },
   subtitle: {
     color: colors.textMuted,
     fontSize: 14,
@@ -133,6 +193,7 @@ const styles = StyleSheet.create({
   },
   permCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: spacing(2),
@@ -149,18 +210,25 @@ const styles = StyleSheet.create({
   },
   permTitle: { color: colors.text, fontSize: 15, fontWeight: '700' },
   permDesc: { color: colors.textMuted, fontSize: 13, marginTop: 2, lineHeight: 18 },
-  notice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing(1),
-    marginTop: spacing(1),
+  grantBtn: {
+    borderWidth: 1.5,
+    borderColor: colors.teal,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing(2),
+    paddingVertical: spacing(0.75),
+    overflow: 'hidden',
   },
-  noticeText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    flex: 1,
-    lineHeight: 17,
+  grantBtnText: { color: colors.teal, fontWeight: '700', fontSize: 13 },
+  grantedPill: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  notice: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing(1), marginTop: spacing(1) },
+  noticeText: { color: colors.textMuted, fontSize: 12, flex: 1, lineHeight: 17 },
   footNote: {
     color: colors.textFaint,
     fontSize: 12,

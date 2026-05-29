@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconButton } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,7 +8,19 @@ import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 import { colors, radius, spacing } from '../src/theme';
 import { OutlineButton, StatTile } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
-import { getStats, getSettings } from '../src/db/database';
+import {
+  getStats,
+  getSettings,
+  getEnabledTriggerApps,
+  recordAppOpen,
+} from '../src/db/database';
+import {
+  detectionAvailable,
+  startMonitoring,
+  getPendingOpens,
+  clearPendingOpens,
+  consumeLaunchTrigger,
+} from '../src/native/detector';
 import type { Stats } from '../src/types';
 
 export default function Dashboard() {
@@ -17,22 +29,59 @@ export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [monitoringOn, setMonitoringOn] = useState(true);
 
+  // Drain the native monitor's buffer into the activity logs, (re)start the
+  // service with the latest trigger list, and surface any pending reminder.
+  const syncDetection = useCallback(async (userId: number) => {
+    if (!detectionAvailable) return;
+    const settings = await getSettings(userId);
+    if (!settings.monitoring_granted) return;
+
+    const opens = getPendingOpens();
+    if (opens.length > 0) {
+      for (const o of opens) await recordAppOpen(userId, o.appName, o.category);
+      clearPendingOpens();
+    }
+
+    const apps = await getEnabledTriggerApps();
+    startMonitoring(apps);
+
+    const trigger = consumeLaunchTrigger();
+    if (trigger) {
+      router.push({
+        pathname: '/reminder',
+        params: { app: trigger.appName, category: trigger.category },
+      });
+    }
+  }, [router]);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
       if (user) {
-        getStats(user.id).then((s) => {
-          if (active) setStats(s);
-        });
         getSettings(user.id).then((s) => {
           if (active) setMonitoringOn(!!s.monitoring_granted);
+        });
+        syncDetection(user.id).finally(() => {
+          if (active) getStats(user.id).then((s) => active && setStats(s));
         });
       }
       return () => {
         active = false;
       };
-    }, [user])
+    }, [user, syncDetection])
   );
+
+  // The monitor brings us to the foreground when a trigger app opens — re-sync
+  // on resume so the reminder fires and the logs catch up.
+  useEffect(() => {
+    if (!user) return;
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') {
+        syncDetection(user.id).then(() => getStats(user.id).then(setStats));
+      }
+    });
+    return () => sub.remove();
+  }, [user, syncDetection]);
 
   if (!user) return <Redirect href="/login" />;
 

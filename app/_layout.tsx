@@ -26,7 +26,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <PaperProvider theme={paperTheme}>
-          <AuthProvider>
+          <AuthProvider dbReady={dbReady}>
             <StatusBar style="light" />
             {dbReady ? (
               <Stack

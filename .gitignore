@@ -7,9 +7,9 @@ dist/
 web-build/
 *.expo-export*/
 
-# native
-ios/
-android/
+# native (root prebuild output only — NOT modules/*/android, which is real source)
+/ios/
+/android/
 
 # misc
 .DS_Store

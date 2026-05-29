@@ -24,9 +24,19 @@ export interface Admin {
 export interface TriggerApp {
   id: number;
   app_name: string;
+  package_name: string; // Android package id, e.g. com.globe.gcash.android
   category: Category;
   enabled: number; // 0 | 1
   created_at: string;
+}
+
+/** An app-open detected by the native monitor, buffered for the JS side to log. */
+export interface DetectedOpen {
+  packageName: string;
+  appName: string;
+  category: Category;
+  isTrigger: boolean;
+  at: number; // epoch ms
 }
 
 export interface UserSettings {

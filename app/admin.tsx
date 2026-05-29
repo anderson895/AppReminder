@@ -38,6 +38,7 @@ export default function Admin() {
   const [formVisible, setFormVisible] = useState(false);
   const [editing, setEditing] = useState<TriggerApp | null>(null);
   const [name, setName] = useState('');
+  const [pkg, setPkg] = useState('');
   const [category, setCategory] = useState<Category>('gambling');
   const [formError, setFormError] = useState('');
 
@@ -61,6 +62,7 @@ export default function Admin() {
   const openAdd = () => {
     setEditing(null);
     setName('');
+    setPkg('');
     setCategory('gambling');
     setFormError('');
     setFormVisible(true);
@@ -69,6 +71,7 @@ export default function Admin() {
   const openEdit = (app: TriggerApp) => {
     setEditing(app);
     setName(app.app_name);
+    setPkg(app.package_name);
     setCategory(app.category);
     setFormError('');
     setFormVisible(true);
@@ -81,10 +84,10 @@ export default function Admin() {
       return;
     }
     if (editing) {
-      await updateTriggerApp(editing.id, trimmed, category);
+      await updateTriggerApp(editing.id, trimmed, category, pkg);
       setToast('App updated.');
     } else {
-      await addTriggerApp(trimmed, category);
+      await addTriggerApp(trimmed, category, pkg);
       setToast('App added.');
     }
     setFormVisible(false);
@@ -171,7 +174,10 @@ export default function Admin() {
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.appName}>{app.app_name}</Text>
-              <Text style={styles.appCat}>{app.category}</Text>
+              <Text style={styles.appCat}>
+                {app.category}
+                {app.package_name ? ` · ${app.package_name}` : ' · no package'}
+              </Text>
             </View>
             <IconButton
               icon="pencil-outline"
@@ -215,6 +221,21 @@ export default function Admin() {
               textColor={colors.text}
               style={styles.input}
             />
+            <TextInput
+              mode="outlined"
+              label="package name (e.g. com.globe.gcash.android)"
+              value={pkg}
+              onChangeText={setPkg}
+              autoCapitalize="none"
+              autoCorrect={false}
+              outlineColor={colors.outline}
+              activeOutlineColor={colors.teal}
+              textColor={colors.text}
+              style={styles.input}
+            />
+            <Text style={styles.hintSmall}>
+              Required for real detection — the Android package id of the app.
+            </Text>
             <Text style={styles.fieldLabel}>category</Text>
             <SegmentedButtons
               value={category}
@@ -324,6 +345,12 @@ const styles = StyleSheet.create({
   dialogTitle: { color: colors.text, fontSize: 18 },
   input: { backgroundColor: colors.background, marginBottom: spacing(1.5) },
   fieldLabel: { color: colors.textMuted, fontSize: 12, marginBottom: spacing(0.75) },
+  hintSmall: {
+    color: colors.textFaint,
+    fontSize: 11,
+    marginTop: -spacing(0.5),
+    marginBottom: spacing(1.5),
+  },
   formError: { color: colors.danger, fontSize: 12, marginTop: spacing(1) },
   confirmText: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
 });

@@ -59,6 +59,7 @@ export async function initDatabase(): Promise<void> {
     CREATE TABLE IF NOT EXISTS trigger_apps (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       app_name TEXT NOT NULL,
+      package_name TEXT NOT NULL DEFAULT '',
       category TEXT NOT NULL,           -- 'gambling' | 'financial'
       enabled INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL
@@ -116,6 +117,16 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   // Drop the unused per-user app table (replaced by the global trigger_apps).
   await db.runAsync('DROP TABLE IF EXISTS monitored_apps');
 
+  // Add package_name to trigger_apps if missing (needed for native detection).
+  const triggerCols = await db.getAllAsync<{ name: string }>(
+    'PRAGMA table_info(trigger_apps)'
+  );
+  if (!triggerCols.some((c) => c.name === 'package_name')) {
+    await db.runAsync(
+      "ALTER TABLE trigger_apps ADD COLUMN package_name TEXT NOT NULL DEFAULT ''"
+    );
+  }
+
   // Drop the unused avg_amount column (tied to the removed "money not gambled").
   if (hasCol('avg_amount')) {
     try {
@@ -145,8 +156,8 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
     const now = new Date().toISOString();
     for (const app of DEFAULT_APPS) {
       await db.runAsync(
-        'INSERT INTO trigger_apps (app_name, category, enabled, created_at) VALUES (?, ?, 1, ?)',
-        [app.app_name, app.category, now]
+        'INSERT INTO trigger_apps (app_name, package_name, category, enabled, created_at) VALUES (?, ?, ?, 1, ?)',
+        [app.app_name, app.package_name, app.category, now]
       );
     }
   }
@@ -161,13 +172,17 @@ export function todayKey(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
-const DEFAULT_APPS: ReadonlyArray<{ app_name: string; category: Category }> = [
-  { app_name: 'GCash', category: 'financial' },
-  { app_name: 'Maya', category: 'financial' },
-  { app_name: 'GrabPay', category: 'financial' },
-  { app_name: 'Online Casino', category: 'gambling' },
-  { app_name: 'Sports Betting', category: 'gambling' },
-  { app_name: 'eBingo', category: 'gambling' },
+const DEFAULT_APPS: ReadonlyArray<{
+  app_name: string;
+  package_name: string;
+  category: Category;
+}> = [
+  { app_name: 'GCash', package_name: 'com.globe.gcash.android', category: 'financial' },
+  { app_name: 'Maya', package_name: 'ph.com.globe.paymaya', category: 'financial' },
+  { app_name: 'GrabPay', package_name: 'com.grabtaxi.passenger', category: 'financial' },
+  { app_name: 'Online Casino', package_name: '', category: 'gambling' },
+  { app_name: 'Sports Betting', package_name: '', category: 'gambling' },
+  { app_name: 'eBingo', package_name: '', category: 'gambling' },
 ];
 
 /* ------------------------------ auth ------------------------------- */
@@ -209,6 +224,11 @@ export async function getAdminByEmail(email: string): Promise<Admin | null> {
   return db.getFirstAsync<Admin>('SELECT * FROM admins WHERE email = ?', [
     email.trim().toLowerCase(),
   ]);
+}
+
+export async function getAdminById(id: number): Promise<Admin | null> {
+  const db = await getDb();
+  return db.getFirstAsync<Admin>('SELECT * FROM admins WHERE id = ?', [id]);
 }
 
 /**
@@ -298,24 +318,26 @@ export async function getEnabledTriggerApps(): Promise<TriggerApp[]> {
 
 export async function addTriggerApp(
   appName: string,
-  category: Category
+  category: Category,
+  packageName = ''
 ): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    'INSERT INTO trigger_apps (app_name, category, enabled, created_at) VALUES (?, ?, 1, ?)',
-    [appName.trim(), category, new Date().toISOString()]
+    'INSERT INTO trigger_apps (app_name, package_name, category, enabled, created_at) VALUES (?, ?, ?, 1, ?)',
+    [appName.trim(), packageName.trim(), category, new Date().toISOString()]
   );
 }
 
 export async function updateTriggerApp(
   id: number,
   appName: string,
-  category: Category
+  category: Category,
+  packageName = ''
 ): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    'UPDATE trigger_apps SET app_name = ?, category = ? WHERE id = ?',
-    [appName.trim(), category, id]
+    'UPDATE trigger_apps SET app_name = ?, package_name = ?, category = ? WHERE id = ?',
+    [appName.trim(), packageName.trim(), category, id]
   );
 }
 
