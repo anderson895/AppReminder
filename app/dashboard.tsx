@@ -2,18 +2,20 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconButton } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
 import { colors, radius, spacing } from '../src/theme';
-import { PrimaryButton, OutlineButton, StatTile } from '../src/components/ui';
+import { OutlineButton, StatTile } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
-import { getStats } from '../src/db/database';
+import { getStats, getSettings } from '../src/db/database';
 import type { Stats } from '../src/types';
 
 export default function Dashboard() {
   const router = useRouter();
   const { user } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [monitoringOn, setMonitoringOn] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -21,6 +23,9 @@ export default function Dashboard() {
       if (user) {
         getStats(user.id).then((s) => {
           if (active) setStats(s);
+        });
+        getSettings(user.id).then((s) => {
+          if (active) setMonitoringOn(!!s.monitoring_granted);
         });
       }
       return () => {
@@ -30,12 +35,6 @@ export default function Dashboard() {
   );
 
   if (!user) return <Redirect href="/login" />;
-
-  const openEWallet = () =>
-    router.push({
-      pathname: '/reminder',
-      params: { app: 'GCash', category: 'financial' },
-    });
 
   const firstName = (user.name || '').split(' ')[0] || 'friend';
 
@@ -56,6 +55,21 @@ export default function Dashboard() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Monitoring-off banner (when the user skipped the permission step) */}
+        {!monitoringOn && (
+          <Pressable
+            style={styles.banner}
+            onPress={() => router.push('/permission')}
+            android_ripple={{ color: 'rgba(0,0,0,0.12)', borderless: false }}
+            accessibilityRole="button"
+          >
+            <MaterialCommunityIcons name="alert-outline" size={20} color={colors.onTeal} />
+            <Text style={styles.bannerText}>
+              Monitoring is off — reminders won't trigger. Tap to enable.
+            </Text>
+          </Pressable>
+        )}
+
         {/* Bet-free streak hero */}
         <View style={styles.heroCard}>
           <Text style={styles.heroLabel}>bet-free streak</Text>
@@ -77,15 +91,10 @@ export default function Dashboard() {
           </View>
 
           {/* Actions */}
-          <PrimaryButton
-            label="open e-wallet"
-            onPress={openEWallet}
-            style={{ marginTop: spacing(2.5), alignSelf: 'stretch' }}
-          />
           <OutlineButton
-            label="view journal"
+            label="view activity logs"
             onPress={() => router.push('/journal')}
-            style={{ marginTop: spacing(1.5), alignSelf: 'stretch' }}
+            style={{ marginTop: spacing(2.5), alignSelf: 'stretch' }}
           />
         </View>
 
@@ -120,6 +129,17 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   gear: { margin: 0 },
   content: { padding: spacing(2), paddingBottom: spacing(4) },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1),
+    backgroundColor: colors.teal,
+    borderRadius: radius.md,
+    padding: spacing(1.5),
+    marginBottom: spacing(2),
+    overflow: 'hidden',
+  },
+  bannerText: { color: colors.onTeal, fontSize: 13, fontWeight: '700', flex: 1 },
   heroCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

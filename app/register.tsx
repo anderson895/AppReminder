@@ -7,13 +7,21 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { TextInput, HelperText } from 'react-native-paper';
+import {
+  TextInput,
+  HelperText,
+  Checkbox,
+  Portal,
+  Dialog,
+  Button,
+} from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Link } from 'expo-router';
 
 import { colors, spacing } from '../src/theme';
 import { PrimaryButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
+import { TERMS_TEXT } from '../src/content/terms';
 
 export default function Register() {
   const router = useRouter();
@@ -23,6 +31,8 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [secure, setSecure] = useState(true);
+  const [agreed, setAgreed] = useState(false);
+  const [termsVisible, setTermsVisible] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -44,11 +54,16 @@ export default function Register() {
       setError('Passwords do not match.');
       return;
     }
+    if (!agreed) {
+      setError('Please read and agree to the Terms and Conditions.');
+      return;
+    }
     setBusy(true);
     try {
       const res = await register({ name, email, password });
       if (res.ok) {
-        router.replace('/dashboard');
+        // New accounts always go through the monitoring-permission flow next.
+        router.replace('/permission');
       } else if (res.reason === 'exists') {
         setError('An account with that email already exists.');
       } else {
@@ -116,6 +131,23 @@ export default function Register() {
             secureTextEntry={secure}
           />
 
+          {/* Terms & Conditions agreement */}
+          <View style={styles.termsRow}>
+            <Checkbox
+              status={agreed ? 'checked' : 'unchecked'}
+              onPress={() => setAgreed((a) => !a)}
+              color={colors.teal}
+              uncheckedColor={colors.textMuted}
+            />
+            <Text style={styles.termsText}>
+              I have read and agree to the{' '}
+              <Text style={styles.link} onPress={() => setTermsVisible(true)}>
+                Terms and Conditions
+              </Text>
+              .
+            </Text>
+          </View>
+
           {!!error && (
             <HelperText type="error" visible>
               {error}
@@ -125,7 +157,7 @@ export default function Register() {
           <PrimaryButton
             label={busy ? 'creating…' : 'create account'}
             onPress={onSubmit}
-            disabled={busy}
+            disabled={busy || !agreed}
             style={styles.cta}
           />
 
@@ -137,6 +169,38 @@ export default function Register() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Portal>
+        <Dialog
+          visible={termsVisible}
+          onDismiss={() => setTermsVisible(false)}
+          style={styles.dialog}
+        >
+          <Dialog.Title style={styles.dialogTitle}>Terms and Conditions</Dialog.Title>
+          <Dialog.ScrollArea style={styles.dialogScroll}>
+            <ScrollView contentContainerStyle={{ paddingVertical: spacing(1) }}>
+              <Text style={styles.termsBody}>{TERMS_TEXT}</Text>
+            </ScrollView>
+          </Dialog.ScrollArea>
+          <Dialog.Actions>
+            <Button
+              textColor={colors.textMuted}
+              onPress={() => setTermsVisible(false)}
+            >
+              close
+            </Button>
+            <Button
+              textColor={colors.teal}
+              onPress={() => {
+                setAgreed(true);
+                setTermsVisible(false);
+              }}
+            >
+              I agree
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </SafeAreaView>
   );
 }
@@ -157,4 +221,17 @@ const styles = StyleSheet.create({
   footerRow: { flexDirection: 'row', justifyContent: 'center', marginTop: spacing(3) },
   footerText: { color: colors.textMuted },
   link: { color: colors.teal, fontWeight: '700' },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing(0.5),
+    marginBottom: spacing(1),
+    paddingRight: spacing(1),
+  },
+  termsText: { color: colors.textMuted, fontSize: 13, flex: 1, lineHeight: 18 },
+  dialog: { backgroundColor: colors.surface, maxHeight: '80%', borderRadius: 6 },
+  dialogTitle: { color: colors.text, fontSize: 18 },
+  dialogScroll: { borderColor: colors.outline },
+  termsBody: { color: colors.textMuted, fontSize: 13, lineHeight: 20 },
 });
+

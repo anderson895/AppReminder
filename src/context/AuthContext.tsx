@@ -6,10 +6,11 @@ import React, {
   type ReactNode,
 } from 'react';
 import { createUser, verifyLogin, getUserByEmail } from '../db/database';
-import type { User, LoginResult, RegisterResult } from '../types';
+import type { User, Admin, LoginResult, RegisterResult } from '../types';
 
 interface AuthContextValue {
   user: User | null;
+  admin: Admin | null;
   ready: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
   register: (input: {
@@ -24,12 +25,19 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [admin, setAdmin] = useState<Admin | null>(null);
   const [ready] = useState(true);
 
   const login = useCallback(
     async (email: string, password: string): Promise<LoginResult> => {
       const res = await verifyLogin(email, password);
-      if (res.ok) setUser(res.user);
+      if (res.ok && res.role === 'admin') {
+        setAdmin(res.admin);
+        setUser(null);
+      } else if (res.ok && res.role === 'user') {
+        setUser(res.user);
+        setAdmin(null);
+      }
       return res;
     },
     []
@@ -45,14 +53,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (existing) return { ok: false, reason: 'exists' };
       const newUser = await createUser(input);
       setUser(newUser);
+      setAdmin(null);
       return { ok: true, user: newUser };
     },
     []
   );
 
-  const logout = useCallback(() => setUser(null), []);
+  const logout = useCallback(() => {
+    setUser(null);
+    setAdmin(null);
+  }, []);
 
-  const value: AuthContextValue = { user, ready, login, register, logout };
+  const value: AuthContextValue = { user, admin, ready, login, register, logout };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

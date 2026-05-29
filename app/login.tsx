@@ -14,6 +14,7 @@ import { useRouter, Link } from 'expo-router';
 import { colors, spacing } from '../src/theme';
 import { PrimaryButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
+import { getSettings } from '../src/db/database';
 
 export default function Login() {
   const router = useRouter();
@@ -33,8 +34,12 @@ export default function Login() {
     setBusy(true);
     try {
       const res = await login(email, password);
-      if (res.ok) {
-        router.replace('/dashboard');
+      if (res.ok && res.role === 'admin') {
+        router.replace('/admin');
+      } else if (res.ok && res.role === 'user') {
+        // Send the user through the monitoring-permission flow until they grant it.
+        const settings = await getSettings(res.user.id);
+        router.replace(settings.monitoring_granted ? '/dashboard' : '/permission');
       } else if (res.reason === 'no-account') {
         setError('No account found for that email.');
       } else {
@@ -115,6 +120,10 @@ export default function Login() {
               create an account
             </Link>
           </View>
+
+          <Text style={styles.adminHint}>
+            admin? log in with your admin credentials above
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -157,4 +166,10 @@ const styles = StyleSheet.create({
   },
   footerText: { color: colors.textMuted },
   link: { color: colors.teal, fontWeight: '700' },
+  adminHint: {
+    color: colors.textFaint,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: spacing(2),
+  },
 });

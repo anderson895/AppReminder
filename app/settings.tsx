@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TextInput, IconButton, Snackbar } from 'react-native-paper';
+import { TextInput, IconButton, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, Redirect } from 'expo-router';
 
 import { colors, radius, spacing } from '../src/theme';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
-import { getSettings, updateSettings } from '../src/db/database';
+import { getSettings, updateSettings, clearUserLogs } from '../src/db/database';
 
 const STEPS: readonly number[] = [5, 10, 15, 30, 60];
 
@@ -19,6 +20,8 @@ export default function Settings() {
   const [countdown, setCountdown] = useState(10);
   const [amount, setAmount] = useState('400');
   const [saved, setSaved] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [toast, setToast] = useState('');
 
   useEffect(() => {
     if (user)
@@ -45,6 +48,12 @@ export default function Settings() {
   const onLogout = () => {
     logout();
     router.replace('/login');
+  };
+
+  const onClearLogs = async () => {
+    await clearUserLogs(user.id);
+    setConfirmClear(false);
+    setToast('History logs cleared.');
   };
 
   const inputProps = {
@@ -140,7 +149,55 @@ export default function Settings() {
           onPress={onLogout}
           style={{ marginTop: spacing(1.5) }}
         />
+
+        {/* Danger zone */}
+        <Text style={styles.dangerLabel}>danger zone</Text>
+        <View style={styles.dangerCard}>
+          <Text style={styles.dangerDesc}>
+            Permanently delete all your daily logs and activity events. Your account and
+            settings stay. This cannot be undone.
+          </Text>
+          <Pressable
+            style={styles.dangerBtn}
+            onPress={() => setConfirmClear(true)}
+            android_ripple={{ color: 'rgba(242,84,91,0.18)', borderless: false }}
+            accessibilityRole="button"
+          >
+            <MaterialCommunityIcons
+              name="trash-can-outline"
+              size={18}
+              color={colors.danger}
+            />
+            <Text style={styles.dangerBtnText}>clear history logs</Text>
+          </Pressable>
+        </View>
       </ScrollView>
+
+      {/* Warning before clearing logs */}
+      <Portal>
+        <Dialog
+          visible={confirmClear}
+          onDismiss={() => setConfirmClear(false)}
+          style={styles.dialog}
+        >
+          <Dialog.Title style={styles.dialogTitle}>Clear history logs?</Dialog.Title>
+          <Dialog.Content>
+            <Text style={styles.dialogText}>
+              This will permanently delete all your daily logs and every recorded
+              activity event. Your bet-free streak and counts will reset to zero.
+              {'\n\n'}This action cannot be undone.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button textColor={colors.textMuted} onPress={() => setConfirmClear(false)}>
+              cancel
+            </Button>
+            <Button textColor={colors.danger} onPress={onClearLogs}>
+              delete logs
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
 
       <Snackbar
         visible={saved}
@@ -149,6 +206,14 @@ export default function Settings() {
         style={{ backgroundColor: colors.tealDark }}
       >
         Settings saved.
+      </Snackbar>
+      <Snackbar
+        visible={!!toast}
+        onDismiss={() => setToast('')}
+        duration={2500}
+        style={{ backgroundColor: colors.tealDark }}
+      >
+        {toast}
       </Snackbar>
     </SafeAreaView>
   );
@@ -217,4 +282,36 @@ const styles = StyleSheet.create({
     backgroundColor: colors.teal,
     borderColor: colors.teal,
   },
+  dangerLabel: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: spacing(3),
+    marginBottom: spacing(1),
+  },
+  dangerCard: {
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.md,
+    padding: spacing(2),
+  },
+  dangerDesc: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  dangerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing(1),
+    borderWidth: 1.5,
+    borderColor: colors.danger,
+    borderRadius: radius.sm,
+    paddingVertical: spacing(1.5),
+    marginTop: spacing(1.5),
+    overflow: 'hidden',
+  },
+  dangerBtnText: { color: colors.danger, fontWeight: '700', fontSize: 15 },
+  dialog: { backgroundColor: colors.surface, borderRadius: 6 },
+  dialogTitle: { color: colors.text, fontSize: 18 },
+  dialogText: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
 });

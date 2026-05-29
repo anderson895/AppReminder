@@ -1,7 +1,8 @@
 /** Shared domain types for SafeWallet. */
 
-export type Category = 'gambling' | 'financial';
-export type EventAction = 'resisted' | 'proceeded';
+export type Category = 'gambling' | 'financial' | 'other';
+export type EventAction = 'resisted' | 'proceeded' | 'opened';
+export type Role = 'user' | 'admin';
 
 export interface User {
   id: number;
@@ -11,12 +12,30 @@ export interface User {
   created_at: string;
 }
 
+export interface Admin {
+  id: number;
+  name: string;
+  email: string;
+  password: string;
+  created_at: string;
+}
+
+/** Global master list of apps the system watches (managed by the admin). */
+export interface TriggerApp {
+  id: number;
+  app_name: string;
+  category: Category;
+  enabled: number; // 0 | 1
+  created_at: string;
+}
+
 export interface UserSettings {
   user_id: number;
   family_member: string;
   family_message: string;
   countdown_seconds: number;
   avg_amount: number;
+  monitoring_granted: number; // 0 | 1 — user consented to app monitoring
 }
 
 export interface MonitoredApp {
@@ -55,8 +74,16 @@ export interface Stats {
   avgAmount: number;
 }
 
+export interface AdminStats {
+  totalUsers: number;
+  totalGamblingAttempts: number;
+  totalResisted: number;
+  triggerAppCount: number;
+}
+
 export type LoginResult =
-  | { ok: true; user: User }
+  | { ok: true; role: 'user'; user: User }
+  | { ok: true; role: 'admin'; admin: Admin }
   | { ok: false; reason: 'no-account' | 'bad-password' };
 
 export type RegisterResult =

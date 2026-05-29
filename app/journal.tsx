@@ -8,7 +8,20 @@ import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 import { colors, radius, spacing } from '../src/theme';
 import { useAuth } from '../src/context/AuthContext';
 import { getDailyLogs, getRecentEvents, todayKey } from '../src/db/database';
-import type { DailyLog, AccessEvent } from '../src/types';
+import type { DailyLog, AccessEvent, EventAction } from '../src/types';
+
+const ACTION_META: Record<
+  EventAction,
+  { icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; label: string }
+> = {
+  resisted: { icon: 'shield-check', color: colors.teal, label: 'urge resisted' },
+  proceeded: {
+    icon: 'arrow-right-circle',
+    color: colors.danger,
+    label: 'proceeded after pause',
+  },
+  opened: { icon: 'cellphone-arrow-down', color: colors.textMuted, label: 'app opened' },
+};
 
 function prettyDate(key: string): string {
   if (key === todayKey()) return 'Today';
@@ -55,7 +68,7 @@ export default function Journal() {
           iconColor={colors.text}
           onPress={() => router.back()}
         />
-        <Text style={styles.title}>activity journal</Text>
+        <Text style={styles.title}>activity logs</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -106,28 +119,30 @@ export default function Journal() {
           </View>
         ))}
 
-        <Text style={[styles.section, { marginTop: spacing(3) }]}>recent events</Text>
-        {events.length === 0 && <Text style={styles.empty}>No events recorded yet.</Text>}
-        {events.map((ev) => (
-          <View key={ev.id} style={styles.eventRow}>
-            <MaterialCommunityIcons
-              name={ev.action === 'resisted' ? 'shield-check' : 'arrow-right-circle'}
-              size={20}
-              color={ev.action === 'resisted' ? colors.teal : colors.textMuted}
-            />
-            <View style={{ flex: 1, marginLeft: spacing(1.5) }}>
-              <Text style={styles.eventApp}>
-                {ev.app_name} <Text style={styles.eventCat}>· {ev.category}</Text>
-              </Text>
-              <Text style={styles.eventAction}>
-                {ev.action === 'resisted'
-                  ? 'urge resisted'
-                  : 'proceeded after pause'}
-              </Text>
+        <Text style={[styles.section, { marginTop: spacing(3) }]}>
+          apps opened
+        </Text>
+        <Text style={styles.empty}>
+          Every app you open is logged here — even ones not on the monitored list.
+        </Text>
+        {events.length === 0 && (
+          <Text style={styles.empty}>No app activity recorded yet.</Text>
+        )}
+        {events.map((ev) => {
+          const meta = ACTION_META[ev.action] ?? ACTION_META.opened;
+          return (
+            <View key={ev.id} style={styles.eventRow}>
+              <MaterialCommunityIcons name={meta.icon} size={20} color={meta.color} />
+              <View style={{ flex: 1, marginLeft: spacing(1.5) }}>
+                <Text style={styles.eventApp}>
+                  {ev.app_name} <Text style={styles.eventCat}>· {ev.category}</Text>
+                </Text>
+                <Text style={styles.eventAction}>{meta.label}</Text>
+              </View>
+              <Text style={styles.eventTime}>{prettyTime(ev.created_at)}</Text>
             </View>
-            <Text style={styles.eventTime}>{prettyTime(ev.created_at)}</Text>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );

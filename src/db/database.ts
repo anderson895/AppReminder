@@ -1,11 +1,13 @@
 import * as SQLite from 'expo-sqlite';
 import type {
   User,
+  Admin,
+  TriggerApp,
   UserSettings,
-  MonitoredApp,
   AccessEvent,
   DailyLog,
   Stats,
+  AdminStats,
   Category,
   EventAction,
   LoginResult,
@@ -16,7 +18,8 @@ import type {
  *
  * Tables
  *  - users          : account credentials + profile
- *  - monitored_apps  : gambling / financial apps watched per user
+ *  - admins          : separate admin accounts (manage the global trigger list)
+ *  - trigger_apps    : GLOBAL master list of watched apps (admin-managed)
  *  - access_events   : every detected access attempt (the audit trail)
  *  - daily_logs      : per-day rollup; gambling_count increments +1 per attempt
  *  - user_settings   : friction-popup message + countdown configuration
@@ -45,13 +48,20 @@ export async function initDatabase(): Promise<void> {
       created_at TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS monitored_apps (
+    CREATE TABLE IF NOT EXISTS admins (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS trigger_apps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       app_name TEXT NOT NULL,
       category TEXT NOT NULL,           -- 'gambling' | 'financial'
       enabled INTEGER NOT NULL DEFAULT 1,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      created_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS access_events (
@@ -81,9 +91,51 @@ export async function initDatabase(): Promise<void> {
       family_message TEXT NOT NULL DEFAULT 'Anak, we believe in you. Every day you choose us over gambling, you give us our future back.',
       countdown_seconds INTEGER NOT NULL DEFAULT 10,
       avg_amount INTEGER NOT NULL DEFAULT 400,
+      monitoring_granted INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   `);
+
+  await migrate(db);
+  await seedDefaults(db);
+}
+
+/** Lightweight column migrations for databases created by older versions. */
+async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
+  const cols = await db.getAllAsync<{ name: string }>(
+    'PRAGMA table_info(user_settings)'
+  );
+  if (!cols.some((c) => c.name === 'monitoring_granted')) {
+    await db.runAsync(
+      'ALTER TABLE user_settings ADD COLUMN monitoring_granted INTEGER NOT NULL DEFAULT 0'
+    );
+  }
+}
+
+/** Seed the default admin account and the global trigger-app list once. */
+async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
+  const adminCount = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM admins'
+  );
+  if ((adminCount?.c ?? 0) === 0) {
+    await db.runAsync(
+      'INSERT INTO admins (name, email, password, created_at) VALUES (?, ?, ?, ?)',
+      ['Administrator', 'admin@safewallet.app', 'admin123', new Date().toISOString()]
+    );
+  }
+
+  const appCount = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM trigger_apps'
+  );
+  if ((appCount?.c ?? 0) === 0) {
+    const now = new Date().toISOString();
+    for (const app of DEFAULT_APPS) {
+      await db.runAsync(
+        'INSERT INTO trigger_apps (app_name, category, enabled, created_at) VALUES (?, ?, 1, ?)',
+        [app.app_name, app.category, now]
+      );
+    }
+  }
 }
 
 /* ----------------------------- helpers ----------------------------- */
@@ -119,14 +171,8 @@ export async function createUser(input: {
   );
   const userId = result.lastInsertRowId;
 
-  // Seed defaults for the new account.
+  // Seed per-user settings. The trigger-app list is global (admin-managed).
   await db.runAsync('INSERT INTO user_settings (user_id) VALUES (?)', [userId]);
-  for (const app of DEFAULT_APPS) {
-    await db.runAsync(
-      'INSERT INTO monitored_apps (user_id, app_name, category) VALUES (?, ?, ?)',
-      [userId, app.app_name, app.category]
-    );
-  }
   const user = await getUserById(userId);
   if (!user) throw new Error('Failed to create user');
   return user;
@@ -144,14 +190,31 @@ export async function getUserById(id: number): Promise<User | null> {
   return db.getFirstAsync<User>('SELECT * FROM users WHERE id = ?', [id]);
 }
 
+export async function getAdminByEmail(email: string): Promise<Admin | null> {
+  const db = await getDb();
+  return db.getFirstAsync<Admin>('SELECT * FROM admins WHERE email = ?', [
+    email.trim().toLowerCase(),
+  ]);
+}
+
+/**
+ * Single login entry point: admin accounts are checked first, then users.
+ * The returned `role` tells the UI where to route.
+ */
 export async function verifyLogin(
   email: string,
   password: string
 ): Promise<LoginResult> {
+  const admin = await getAdminByEmail(email);
+  if (admin) {
+    if (admin.password !== password) return { ok: false, reason: 'bad-password' };
+    return { ok: true, role: 'admin', admin };
+  }
+
   const user = await getUserByEmail(email);
   if (!user) return { ok: false, reason: 'no-account' };
   if (user.password !== password) return { ok: false, reason: 'bad-password' };
-  return { ok: true, user };
+  return { ok: true, role: 'user', user };
 }
 
 /* ---------------------------- settings ----------------------------- */
@@ -198,22 +261,94 @@ export async function updateSettings(
   return getSettings(userId);
 }
 
-/* -------------------------- monitored apps ------------------------- */
-
-export async function getMonitoredApps(userId: number): Promise<MonitoredApp[]> {
+export async function setMonitoringGranted(
+  userId: number,
+  granted: boolean
+): Promise<void> {
   const db = await getDb();
-  return db.getAllAsync<MonitoredApp>(
-    'SELECT * FROM monitored_apps WHERE user_id = ? ORDER BY category DESC, app_name ASC',
-    [userId]
+  await db.runAsync(
+    'UPDATE user_settings SET monitoring_granted = ? WHERE user_id = ?',
+    [granted ? 1 : 0, userId]
   );
 }
 
-export async function toggleMonitoredApp(id: number, enabled: boolean): Promise<void> {
+/* --------------------- trigger apps (global, admin) ---------------- */
+
+export async function getTriggerApps(): Promise<TriggerApp[]> {
   const db = await getDb();
-  await db.runAsync('UPDATE monitored_apps SET enabled = ? WHERE id = ?', [
+  return db.getAllAsync<TriggerApp>(
+    'SELECT * FROM trigger_apps ORDER BY category DESC, app_name ASC'
+  );
+}
+
+/** Only the enabled apps — what the detector / user side actually watches. */
+export async function getEnabledTriggerApps(): Promise<TriggerApp[]> {
+  const db = await getDb();
+  return db.getAllAsync<TriggerApp>(
+    'SELECT * FROM trigger_apps WHERE enabled = 1 ORDER BY category DESC, app_name ASC'
+  );
+}
+
+export async function addTriggerApp(
+  appName: string,
+  category: Category
+): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'INSERT INTO trigger_apps (app_name, category, enabled, created_at) VALUES (?, ?, 1, ?)',
+    [appName.trim(), category, new Date().toISOString()]
+  );
+}
+
+export async function updateTriggerApp(
+  id: number,
+  appName: string,
+  category: Category
+): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'UPDATE trigger_apps SET app_name = ?, category = ? WHERE id = ?',
+    [appName.trim(), category, id]
+  );
+}
+
+export async function deleteTriggerApp(id: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM trigger_apps WHERE id = ?', [id]);
+}
+
+export async function toggleTriggerApp(id: number, enabled: boolean): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE trigger_apps SET enabled = ? WHERE id = ?', [
     enabled ? 1 : 0,
     id,
   ]);
+}
+
+/* ----------------------------- admin stats ------------------------- */
+
+export async function getAdminStats(): Promise<AdminStats> {
+  const db = await getDb();
+  const users = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM users'
+  );
+  const apps = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM trigger_apps'
+  );
+  const totals = await db.getFirstAsync<{
+    g: number;
+    r: number;
+  }>(
+    `SELECT COALESCE(SUM(gambling_count), 0) AS g,
+            COALESCE(SUM(resisted_count), 0) AS r
+     FROM daily_logs`
+  );
+  return {
+    totalUsers: users?.c ?? 0,
+    triggerAppCount: apps?.c ?? 0,
+    totalGamblingAttempts: totals?.g ?? 0,
+    totalResisted: totals?.r ?? 0,
+  };
 }
 
 /* ----------------------------- events ------------------------------ */
@@ -258,6 +393,19 @@ export async function recordEvent(input: {
   }
 }
 
+/**
+ * Log that an app was opened, regardless of whether it is on the trigger list.
+ * Non-trigger apps are recorded with category 'other' and action 'opened'
+ * (no counters change) — this is how the activity log captures every app.
+ */
+export async function recordAppOpen(
+  userId: number,
+  appName: string,
+  category: Category = 'other'
+): Promise<void> {
+  return recordEvent({ userId, appName, category, action: 'opened' });
+}
+
 export async function getDailyLogs(userId: number, limit = 30): Promise<DailyLog[]> {
   const db = await getDb();
   return db.getAllAsync<DailyLog>(
@@ -275,6 +423,16 @@ export async function getRecentEvents(
     'SELECT * FROM access_events WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
     [userId, limit]
   );
+}
+
+/**
+ * Permanently delete a single user's activity history
+ * (daily rollups + individual events). Settings and account are untouched.
+ */
+export async function clearUserLogs(userId: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM access_events WHERE user_id = ?', [userId]);
+  await db.runAsync('DELETE FROM daily_logs WHERE user_id = ?', [userId]);
 }
 
 /* --------------------------- derived stats ------------------------- */

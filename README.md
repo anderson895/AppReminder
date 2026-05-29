@@ -10,9 +10,19 @@ countdown timer, then logs every detected attempt under your account.
 ## Features
 
 - **Login & registration** — accounts stored locally in SQLite; reminder features activate
-  only after sign-in.
+  only after sign-in. Registration requires agreeing to the **Terms and Conditions**.
+- **Monitoring consent** — after registering or logging in, users are taken to a
+  permission screen that explains and requests app-monitoring access (Usage access +
+  Display over other apps). In Expo Go this records in-app consent; in a native dev build
+  it deep-links to the real Android permission screens. A dashboard banner appears while
+  monitoring is off.
+- **Admin account** — a separate admin role manages the **global trigger-app list**
+  (add / edit / delete / enable) that applies to every user, plus an overview of total
+  users and gambling hits. Regular users see this list read-only.
+  - Default admin: **`admin@safewallet.app`** / **`admin123`** (seeded on first launch;
+    log in on the normal login screen).
 - **Monitored apps** — gambling (Online Casino, Sports Betting, eBingo) and financial
-  (GCash, Maya, GrabPay) apps; each can be toggled on/off.
+  (GCash, Maya, GrabPay) apps, defined centrally by the admin.
 - **Friction pop-up** — a personal message ("from mama") shown before a monitored app opens,
   matching the reference design.
 - **Countdown timer** — a configurable waiting period (5–60s) before access is granted.

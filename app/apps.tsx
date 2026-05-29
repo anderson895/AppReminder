@@ -1,14 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Switch, IconButton } from 'react-native-paper';
+import { IconButton, TextInput, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
 import { colors, radius, spacing } from '../src/theme';
+import { OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
-import { getMonitoredApps, toggleMonitoredApp } from '../src/db/database';
-import type { MonitoredApp } from '../src/types';
+import { getEnabledTriggerApps, recordAppOpen } from '../src/db/database';
+import type { TriggerApp } from '../src/types';
 
 const ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
   GCash: 'wallet',
@@ -22,27 +23,27 @@ const ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
 export default function Apps() {
   const router = useRouter();
   const { user } = useAuth();
-  const [apps, setApps] = useState<MonitoredApp[]>([]);
-
-  const load = useCallback(() => {
-    if (user) getMonitoredApps(user.id).then(setApps);
-  }, [user]);
+  const [apps, setApps] = useState<TriggerApp[]>([]);
+  const [otherApp, setOtherApp] = useState('');
+  const [toast, setToast] = useState('');
 
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load])
+      getEnabledTriggerApps().then(setApps);
+    }, [])
   );
 
   if (!user) return <Redirect href="/login" />;
 
-  const onToggle = async (app: MonitoredApp): Promise<void> => {
-    await toggleMonitoredApp(app.id, !app.enabled);
-    load();
+  const onLogOtherApp = async () => {
+    const name = otherApp.trim();
+    if (!name) return;
+    await recordAppOpen(user.id, name, 'other');
+    setOtherApp('');
+    setToast(`Logged "${name}" as opened.`);
   };
 
-  const onSimulate = (app: MonitoredApp) => {
-    if (!app.enabled) return;
+  const onSimulate = (app: TriggerApp) => {
     router.push({
       pathname: '/reminder',
       params: { app: app.app_name, category: app.category },
@@ -52,44 +53,39 @@ export default function Apps() {
   const gambling = apps.filter((a) => a.category === 'gambling');
   const financial = apps.filter((a) => a.category === 'financial');
 
-  const Section = ({ title, data }: { title: string; data: MonitoredApp[] }) => (
-    <>
-      <Text style={styles.section}>{title}</Text>
-      {data.map((app) => (
-        <View key={app.id} style={styles.row}>
-          <View style={styles.iconBox}>
-            <MaterialCommunityIcons
-              name={ICONS[app.app_name] ?? 'cellphone'}
-              size={22}
-              color={app.enabled ? colors.teal : colors.textFaint}
-            />
+  const Section = ({ title, data }: { title: string; data: TriggerApp[] }) => {
+    if (data.length === 0) return null;
+    return (
+      <>
+        <Text style={styles.section}>{title}</Text>
+        {data.map((app) => (
+          <View key={app.id} style={styles.row}>
+            <View style={styles.iconBox}>
+              <MaterialCommunityIcons
+                name={ICONS[app.app_name] ?? 'cellphone'}
+                size={22}
+                color={colors.teal}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.appName}>{app.app_name}</Text>
+              <Text style={styles.appCat}>
+                {app.category === 'gambling' ? 'gambling app' : 'financial app'}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => onSimulate(app)}
+              android_ripple={{ color: 'rgba(47,227,168,0.25)', borderless: false }}
+              accessibilityRole="button"
+              style={styles.testBtn}
+            >
+              <Text style={styles.testLabel}>test</Text>
+            </Pressable>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.appName}>{app.app_name}</Text>
-            <Text style={styles.appCat}>
-              {app.category === 'gambling' ? 'gambling app' : 'financial app'}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => onSimulate(app)}
-            disabled={!app.enabled}
-            android_ripple={{ color: 'rgba(47,227,168,0.25)', borderless: false }}
-            accessibilityRole="button"
-            style={[styles.testBtn, !app.enabled && styles.testBtnOff]}
-          >
-            <Text style={[styles.testLabel, !app.enabled && styles.testLabelOff]}>
-              test
-            </Text>
-          </Pressable>
-          <Switch
-            value={!!app.enabled}
-            onValueChange={() => onToggle(app)}
-            color={colors.teal}
-          />
-        </View>
-      ))}
-    </>
-  );
+        ))}
+      </>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -106,13 +102,45 @@ export default function Apps() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.note}>
-          SafeWallet watches these apps. Tap <Text style={styles.noteHi}>test</Text> to
-          simulate the system detecting that you opened the app and trigger the reminder
-          flow.
+          These are the apps SafeWallet watches, set by your administrator. Tap{' '}
+          <Text style={styles.noteHi}>test</Text> to preview the reminder that appears
+          when one is opened.
         </Text>
+        {apps.length === 0 && (
+          <Text style={styles.empty}>
+            No monitored apps configured yet. Please check back later.
+          </Text>
+        )}
         <Section title="gambling" data={gambling} />
         <Section title="financial" data={financial} />
+
+        {/* Simulate opening an app NOT on the monitored list */}
+        <Text style={styles.section}>other apps</Text>
+        <Text style={styles.note}>
+          The system also logs apps you open that aren't monitored. Enter an app name to
+          simulate opening it — it will appear in your activity logs without a reminder.
+        </Text>
+        <TextInput
+          mode="outlined"
+          label="app name (e.g. Messenger)"
+          value={otherApp}
+          onChangeText={setOtherApp}
+          outlineColor={colors.outline}
+          activeOutlineColor={colors.teal}
+          textColor={colors.text}
+          style={styles.otherInput}
+        />
+        <OutlineButton label="log app open" onPress={onLogOtherApp} />
       </ScrollView>
+
+      <Snackbar
+        visible={!!toast}
+        onDismiss={() => setToast('')}
+        duration={2200}
+        style={{ backgroundColor: colors.tealDark }}
+      >
+        {toast}
+      </Snackbar>
     </SafeAreaView>
   );
 }
@@ -134,6 +162,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing(2),
   },
   noteHi: { color: colors.teal, fontWeight: '700' },
+  empty: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   section: {
     color: colors.textFaint,
     fontSize: 12,
@@ -166,12 +195,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.teal,
     borderRadius: radius.sm,
-    paddingHorizontal: spacing(1.5),
-    paddingVertical: spacing(0.5),
-    marginRight: spacing(1),
+    paddingHorizontal: spacing(2),
+    paddingVertical: spacing(0.75),
     overflow: 'hidden',
   },
-  testBtnOff: { borderColor: colors.outline },
   testLabel: { color: colors.teal, fontWeight: '700', fontSize: 13 },
-  testLabelOff: { color: colors.textFaint },
+  otherInput: { backgroundColor: colors.surface, marginBottom: spacing(1.5) },
 });
