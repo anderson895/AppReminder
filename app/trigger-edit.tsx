@@ -268,9 +268,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     padding: spacing(1.5),
     marginTop: spacing(1),
-    overflow: 'hidden',
+    // Constant border (transparent → teal) so selecting never shifts layout,
+    // which on Android could clip/blank the row's text on re-render.
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
-  appRowSelected: { borderWidth: 1.5, borderColor: colors.teal },
+  appRowSelected: { borderColor: colors.teal },
   appLabel: { color: colors.text, fontSize: 15, fontWeight: '600' },
   appPkg: { color: colors.textFaint, fontSize: 12, marginTop: 1 },
 });
