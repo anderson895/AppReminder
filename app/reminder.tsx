@@ -52,7 +52,7 @@ export default function Reminder() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.bar}>
-        <Text style={styles.brand}>SafeWallet</Text>
+        <Text style={styles.brand}>BettrMind</Text>
         <Text style={styles.clock}>9:42</Text>
       </View>
 

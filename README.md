@@ -1,9 +1,9 @@
-# SafeWallet
+# BettrMind
 
 A gambling-app reminder mobile application built with **Expo (React Native) + TypeScript**,
 **expo-router**, **React Native Paper**, and **SQLite (expo-sqlite)**.
 
-SafeWallet asks you to pause before opening gambling and financial apps (GCash, Maya, etc.).
+BettrMind asks you to pause before opening gambling and financial apps (GCash, Maya, etc.).
 Before access is granted it shows a friction reminder — a message from a loved one — and a
 countdown timer, then logs every detected attempt under your account.
 
@@ -19,7 +19,7 @@ countdown timer, then logs every detected attempt under your account.
 - **Admin account** — a separate admin role manages the **global trigger-app list**
   (add / edit / delete / enable) that applies to every user, plus an overview of total
   users and gambling hits. Regular users see this list read-only.
-  - Default admin: **`admin@safewallet.app`** / **`admin123`** (seeded on first launch;
+  - Default admin: **`admin@gmail.com`** / **`admin123`** (seeded on first launch;
     log in on the normal login screen).
 - **Monitored apps** — gambling (Online Casino, Sports Betting, eBingo) and financial
   (GCash, Maya, GrabPay) apps, defined centrally by the admin.

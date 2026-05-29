@@ -1,7 +1,7 @@
 import { MD3DarkTheme } from 'react-native-paper';
 
 /**
- * SafeWallet design tokens — derived from the reference UI mockups.
+ * BettrMind design tokens — derived from the reference UI mockups.
  * Dark charcoal canvas, mint/teal accent, white + dark-teal cards.
  */
 export const colors = {

@@ -11,6 +11,13 @@ import { useAuth } from '../src/context/AuthContext';
 import { getEnabledTriggerApps, recordAppOpen } from '../src/db/database';
 import type { TriggerApp } from '../src/types';
 
+/**
+ * Simulation affordances (the per-row "test" button and the "simulate opening
+ * an app" input) are testing-only stand-ins for real background detection.
+ * Flip to `true` to bring them back for a demo.
+ */
+const SIMULATION = false;
+
 const ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
   GCash: 'wallet',
   Maya: 'credit-card-outline',
@@ -86,14 +93,16 @@ export default function Apps() {
                 {app.category === 'gambling' ? 'gambling app' : 'financial app'}
               </Text>
             </View>
-            <Pressable
-              onPress={() => onSimulate(app)}
-              android_ripple={{ color: 'rgba(47,227,168,0.25)', borderless: false }}
-              accessibilityRole="button"
-              style={styles.testBtn}
-            >
-              <Text style={styles.testLabel}>test</Text>
-            </Pressable>
+            {SIMULATION && (
+              <Pressable
+                onPress={() => onSimulate(app)}
+                android_ripple={{ color: 'rgba(47,227,168,0.25)', borderless: false }}
+                accessibilityRole="button"
+                style={styles.testBtn}
+              >
+                <Text style={styles.testLabel}>test</Text>
+              </Pressable>
+            )}
           </View>
         ))}
       </>
@@ -115,9 +124,8 @@ export default function Apps() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.note}>
-          These are the apps SafeWallet watches, set by your administrator. Tap{' '}
-          <Text style={styles.noteHi}>test</Text> to preview the reminder that appears
-          when one is opened.
+          These are the apps BettrMind watches, set by your administrator. When you open
+          one of them, a reminder appears before you continue.
         </Text>
         {apps.length === 0 && (
           <Text style={styles.empty}>
@@ -127,23 +135,28 @@ export default function Apps() {
         <Section title="gambling" data={gambling} />
         <Section title="financial" data={financial} />
 
-        {/* Simulate opening an app NOT on the monitored list */}
-        <Text style={styles.section}>simulate opening an app</Text>
-        <Text style={styles.note}>
-          Enter any app name to simulate opening it. If it matches a monitored app
-          (e.g. Maya, eBingo), the reminder appears; otherwise it's logged as “other”.
-        </Text>
-        <TextInput
-          mode="outlined"
-          label="app name (e.g. Messenger)"
-          value={otherApp}
-          onChangeText={setOtherApp}
-          outlineColor={colors.outline}
-          activeOutlineColor={colors.teal}
-          textColor={colors.text}
-          style={styles.otherInput}
-        />
-        <OutlineButton label="log app open" onPress={onLogOtherApp} />
+        {/* Simulate opening an app (testing-only stand-in for real detection) */}
+        {SIMULATION && (
+          <>
+            <Text style={styles.section}>simulate opening an app</Text>
+            <Text style={styles.note}>
+              Enter any app name to simulate opening it. If it matches a monitored app
+              (e.g. Maya, eBingo), the reminder appears; otherwise it's logged as
+              “other”.
+            </Text>
+            <TextInput
+              mode="outlined"
+              label="app name (e.g. Messenger)"
+              value={otherApp}
+              onChangeText={setOtherApp}
+              outlineColor={colors.outline}
+              activeOutlineColor={colors.teal}
+              textColor={colors.text}
+              style={styles.otherInput}
+            />
+            <OutlineButton label="log app open" onPress={onLogOtherApp} />
+          </>
+        )}
       </ScrollView>
 
       <Snackbar

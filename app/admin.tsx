@@ -114,7 +114,7 @@ export default function Admin() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.brand}>SafeWallet · admin</Text>
+          <Text style={styles.brand}>BettrMind · admin</Text>
           <Text style={styles.sub}>{admin.email}</Text>
         </View>
         <IconButton

@@ -42,7 +42,7 @@ export default function Dashboard() {
     <SafeAreaView style={styles.safe}>
       {/* Branded header */}
       <View style={styles.header}>
-        <Text style={styles.brand}>SafeWallet</Text>
+        <Text style={styles.brand}>BettrMind</Text>
         <View style={styles.headerRight}>
           <IconButton
             icon="cog-outline"

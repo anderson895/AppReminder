@@ -110,7 +110,7 @@ export default function Countdown() {
               style={{ alignSelf: 'stretch', marginTop: spacing(4) }}
             />
             <OutlineButton
-              label="back to SafeWallet"
+              label="back to BettrMind"
               onPress={() => router.replace('/dashboard')}
               style={{ alignSelf: 'stretch', marginTop: spacing(1.5) }}
             />

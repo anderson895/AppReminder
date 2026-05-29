@@ -1,4 +1,4 @@
-/** Shared domain types for SafeWallet. */
+/** Shared domain types for BettrMind. */
 
 export type Category = 'gambling' | 'financial' | 'other';
 export type EventAction = 'resisted' | 'proceeded' | 'opened';
@@ -34,16 +34,7 @@ export interface UserSettings {
   family_member: string;
   family_message: string;
   countdown_seconds: number;
-  avg_amount: number;
   monitoring_granted: number; // 0 | 1 — user consented to app monitoring
-}
-
-export interface MonitoredApp {
-  id: number;
-  user_id: number;
-  app_name: string;
-  category: Category;
-  enabled: number; // SQLite stores booleans as 0 | 1
 }
 
 export interface AccessEvent {
@@ -70,8 +61,6 @@ export interface Stats {
   longestStreakDays: number;
   urgesResisted: number;
   gamblingAttempts: number;
-  moneyNotGambled: number;
-  avgAmount: number;
 }
 
 export interface AdminStats {

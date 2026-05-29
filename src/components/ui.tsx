@@ -154,11 +154,11 @@ export function StatTile({ value, label, style }: StatTileProps) {
   );
 }
 
-/** SafeWallet branded top bar with a faux clock, matching the mockups. */
+/** BettrMind branded top bar with a faux clock, matching the mockups. */
 export function BrandHeader({ time = '9:41' }: { time?: string }) {
   return (
     <View style={styles.header}>
-      <Text style={styles.brand}>SafeWallet</Text>
+      <Text style={styles.brand}>BettrMind</Text>
       <Text style={styles.clock}>{time}</Text>
     </View>
   );

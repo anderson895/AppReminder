@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -63,9 +64,13 @@ export default function Login() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.brandWrap}>
-            <View style={styles.logoDot} />
-            <Text style={styles.brand}>SafeWallet</Text>
-            <Text style={styles.tagline}>your pause before the bet</Text>
+            <Image
+              source={require('../assets/icon.png')}
+              style={styles.logoImg}
+              resizeMode="contain"
+            />
+            <Text style={styles.brand}>BettrMind</Text>
+            <Text style={styles.tagline}>pause. think. choose better.</Text>
           </View>
 
           <Text style={styles.title}>welcome back</Text>
@@ -138,11 +143,10 @@ const styles = StyleSheet.create({
     padding: spacing(3),
   },
   brandWrap: { alignItems: 'center', marginBottom: spacing(5) },
-  logoDot: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: colors.teal,
+  logoImg: {
+    width: 110,
+    height: 110,
+    borderRadius: 24,
     marginBottom: spacing(1.5),
   },
   brand: { color: colors.text, fontSize: 26, fontWeight: '800' },

@@ -19,7 +19,7 @@ const PERMISSIONS: PermItem[] = [
   {
     icon: 'eye-check-outline',
     title: 'Usage access',
-    desc: 'Lets SafeWallet see which app is currently open so it can recognise a monitored gambling or financial app.',
+    desc: 'Lets BettrMind see which app is currently open so it can recognise a monitored gambling or financial app.',
   },
   {
     icon: 'application-outline',
@@ -56,7 +56,7 @@ export default function Permission() {
 
         <Text style={styles.title}>enable app monitoring</Text>
         <Text style={styles.subtitle}>
-          For SafeWallet to remind you before you open a gambling or financial app, it
+          For BettrMind to remind you before you open a gambling or financial app, it
           needs permission to monitor which apps you open.
         </Text>
 
@@ -79,7 +79,7 @@ export default function Permission() {
             color={colors.textMuted}
           />
           <Text style={styles.noticeText}>
-            SafeWallet only checks the app you open against the monitored list. It never
+            BettrMind only checks the app you open against the monitored list. It never
             reads your messages, transactions, or balances.
           </Text>
         </View>

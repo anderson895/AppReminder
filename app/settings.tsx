@@ -12,13 +12,15 @@ import { getSettings, updateSettings, clearUserLogs } from '../src/db/database';
 
 const STEPS: readonly number[] = [5, 10, 15, 30, 60];
 
+// Flip to `true` to expose the "clear history logs" danger zone again.
+const SHOW_CLEAR_LOGS = false;
+
 export default function Settings() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [member, setMember] = useState('');
   const [message, setMessage] = useState('');
   const [countdown, setCountdown] = useState(10);
-  const [amount, setAmount] = useState('400');
   const [saved, setSaved] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [toast, setToast] = useState('');
@@ -29,7 +31,6 @@ export default function Settings() {
         setMember(s.family_member);
         setMessage(s.family_message);
         setCountdown(s.countdown_seconds);
-        setAmount(String(s.avg_amount));
       });
   }, [user]);
 
@@ -40,7 +41,6 @@ export default function Settings() {
       family_member: member.trim() || 'mama',
       family_message: message.trim(),
       countdown_seconds: countdown,
-      avg_amount: Math.max(0, parseInt(amount, 10) || 0),
     });
     setSaved(true);
   };
@@ -127,22 +127,10 @@ export default function Settings() {
           ))}
         </View>
 
-        <Text style={styles.section}>typical bet amount (₱)</Text>
-        <Text style={styles.help}>
-          Used to estimate the "money not gambled" figure on your dashboard.
-        </Text>
-        <TextInput
-          {...inputProps}
-          label="amount per urge"
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="numeric"
-        />
-
         <PrimaryButton
           label="save changes"
           onPress={onSave}
-          style={{ marginTop: spacing(2) }}
+          style={{ marginTop: spacing(2.5) }}
         />
         <OutlineButton
           label="log out"
@@ -151,26 +139,30 @@ export default function Settings() {
         />
 
         {/* Danger zone */}
-        <Text style={styles.dangerLabel}>danger zone</Text>
-        <View style={styles.dangerCard}>
-          <Text style={styles.dangerDesc}>
-            Permanently delete all your daily logs and activity events. Your account and
-            settings stay. This cannot be undone.
-          </Text>
-          <Pressable
-            style={styles.dangerBtn}
-            onPress={() => setConfirmClear(true)}
-            android_ripple={{ color: 'rgba(242,84,91,0.18)', borderless: false }}
-            accessibilityRole="button"
-          >
-            <MaterialCommunityIcons
-              name="trash-can-outline"
-              size={18}
-              color={colors.danger}
-            />
-            <Text style={styles.dangerBtnText}>clear history logs</Text>
-          </Pressable>
-        </View>
+        {SHOW_CLEAR_LOGS && (
+          <>
+            <Text style={styles.dangerLabel}>danger zone</Text>
+            <View style={styles.dangerCard}>
+              <Text style={styles.dangerDesc}>
+                Permanently delete all your daily logs and activity events. Your account
+                and settings stay. This cannot be undone.
+              </Text>
+              <Pressable
+                style={styles.dangerBtn}
+                onPress={() => setConfirmClear(true)}
+                android_ripple={{ color: 'rgba(242,84,91,0.18)', borderless: false }}
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons
+                  name="trash-can-outline"
+                  size={18}
+                  color={colors.danger}
+                />
+                <Text style={styles.dangerBtnText}>clear history logs</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {/* Warning before clearing logs */}

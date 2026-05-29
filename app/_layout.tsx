@@ -51,7 +51,7 @@ export default function RootLayout() {
                 {dbError ? (
                   <Text style={styles.error}>Database error: {dbError}</Text>
                 ) : (
-                  <Text style={styles.loadingText}>Setting up SafeWallet…</Text>
+                  <Text style={styles.loadingText}>Setting up BettrMind…</Text>
                 )}
               </View>
             )}

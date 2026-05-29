@@ -14,7 +14,7 @@ import type {
 } from '../types';
 
 /**
- * SafeWallet local database (SQLite via expo-sqlite, async API).
+ * BettrMind local database (SQLite via expo-sqlite, async API).
  *
  * Tables
  *  - users          : account credentials + profile
@@ -68,8 +68,8 @@ export async function initDatabase(): Promise<void> {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       app_name TEXT NOT NULL,
-      category TEXT NOT NULL,           -- 'gambling' | 'financial'
-      action TEXT NOT NULL,             -- 'resisted' | 'proceeded'
+      category TEXT NOT NULL,           -- 'gambling' | 'financial' | 'other'
+      action TEXT NOT NULL,             -- 'resisted' | 'proceeded' | 'opened'
       day TEXT NOT NULL,                -- YYYY-MM-DD
       created_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -90,7 +90,6 @@ export async function initDatabase(): Promise<void> {
       family_member TEXT NOT NULL DEFAULT 'mama',
       family_message TEXT NOT NULL DEFAULT 'Anak, we believe in you. Every day you choose us over gambling, you give us our future back.',
       countdown_seconds INTEGER NOT NULL DEFAULT 10,
-      avg_amount INTEGER NOT NULL DEFAULT 400,
       monitoring_granted INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -100,15 +99,30 @@ export async function initDatabase(): Promise<void> {
   await seedDefaults(db);
 }
 
-/** Lightweight column migrations for databases created by older versions. */
+/** Schema migrations to keep databases from older versions tidy. */
 async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   const cols = await db.getAllAsync<{ name: string }>(
     'PRAGMA table_info(user_settings)'
   );
-  if (!cols.some((c) => c.name === 'monitoring_granted')) {
+  const hasCol = (name: string) => cols.some((c) => c.name === name);
+
+  // Add the monitoring-consent flag if missing.
+  if (!hasCol('monitoring_granted')) {
     await db.runAsync(
       'ALTER TABLE user_settings ADD COLUMN monitoring_granted INTEGER NOT NULL DEFAULT 0'
     );
+  }
+
+  // Drop the unused per-user app table (replaced by the global trigger_apps).
+  await db.runAsync('DROP TABLE IF EXISTS monitored_apps');
+
+  // Drop the unused avg_amount column (tied to the removed "money not gambled").
+  if (hasCol('avg_amount')) {
+    try {
+      await db.runAsync('ALTER TABLE user_settings DROP COLUMN avg_amount');
+    } catch {
+      // Older SQLite without DROP COLUMN support — leave it; it is harmless.
+    }
   }
 }
 
@@ -120,7 +134,7 @@ async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
   if ((adminCount?.c ?? 0) === 0) {
     await db.runAsync(
       'INSERT INTO admins (name, email, password, created_at) VALUES (?, ?, ?, ?)',
-      ['Administrator', 'admin@safewallet.app', 'admin123', new Date().toISOString()]
+      ['Administrator', 'admin@gmail.com', 'admin123', new Date().toISOString()]
     );
   }
 
@@ -242,21 +256,14 @@ export async function updateSettings(
     family_member: string;
     family_message: string;
     countdown_seconds: number;
-    avg_amount: number;
   }
 ): Promise<UserSettings> {
   const db = await getDb();
   await db.runAsync(
     `UPDATE user_settings
-       SET family_member = ?, family_message = ?, countdown_seconds = ?, avg_amount = ?
+       SET family_member = ?, family_message = ?, countdown_seconds = ?
      WHERE user_id = ?`,
-    [
-      patch.family_member,
-      patch.family_message,
-      patch.countdown_seconds,
-      patch.avg_amount,
-      userId,
-    ]
+    [patch.family_member, patch.family_message, patch.countdown_seconds, userId]
   );
   return getSettings(userId);
 }
@@ -439,7 +446,6 @@ export async function clearUserLogs(userId: number): Promise<void> {
 
 export async function getStats(userId: number): Promise<Stats> {
   const db = await getDb();
-  const settings = await getSettings(userId);
 
   const totals = await db.getFirstAsync<{
     total_resisted: number;
@@ -471,7 +477,6 @@ export async function getStats(userId: number): Promise<Stats> {
   }
 
   const longest = computeLongestStreak(logs);
-  const moneyNotGambled = totalResisted * settings.avg_amount;
 
   return {
     streakDays: streak,
@@ -479,8 +484,6 @@ export async function getStats(userId: number): Promise<Stats> {
     longestStreakDays: longest,
     urgesResisted: totalResisted,
     gamblingAttempts: totalGambling,
-    moneyNotGambled,
-    avgAmount: settings.avg_amount,
   };
 }
 

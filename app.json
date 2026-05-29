@@ -1,28 +1,32 @@
 {
   "expo": {
-    "name": "SafeWallet",
-    "slug": "safewallet",
+    "name": "BettrMind",
+    "slug": "bettrmind",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "safewallet",
+    "scheme": "bettrmind",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "splash": {
-      "backgroundColor": "#2C2C2E",
-      "resizeMode": "contain"
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
     },
     "android": {
-      "package": "com.safewallet.app",
+      "package": "com.bettrmind.app",
       "adaptiveIcon": {
-        "backgroundColor": "#2C2C2E"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       }
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.safewallet.app"
+      "bundleIdentifier": "com.bettrmind.app"
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
     },
     "plugins": [
       "expo-router",
@@ -30,6 +34,13 @@
     ],
     "experiments": {
       "typedRoutes": false
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8900216c-b044-49a1-bc0e-5ce4cd709870"
+      }
+    },
+    "owner": "padillajoshuaanderson.pdm"
   }
 }
