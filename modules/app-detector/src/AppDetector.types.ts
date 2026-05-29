@@ -10,4 +10,5 @@ export interface AppDetectorNativeModule {
   getPendingOpensJson(): string;
   clearPendingOpens(): void;
   consumeLaunchTriggerJson(): string;
+  getInstalledAppsJson(): string;
 }

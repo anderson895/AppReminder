@@ -73,6 +73,24 @@ export function clearPendingOpens(): void {
   Native.clearPendingOpens();
 }
 
+export interface InstalledApp {
+  packageName: string;
+  label: string;
+}
+
+/** All launchable apps installed on the device (for the admin picker). */
+export function getInstalledApps(): InstalledApp[] {
+  try {
+    const parsed = JSON.parse(Native.getInstalledAppsJson()) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((a): a is InstalledApp => !!a && typeof a.packageName === 'string')
+      .sort((a, b) => a.label.localeCompare(b.label));
+  } catch {
+    return [];
+  }
+}
+
 /** If a trigger app was just opened, returns it once (then clears it). */
 export function consumeLaunchTrigger(): DetectedOpen | null {
   const raw = Native.consumeLaunchTriggerJson();

@@ -9,6 +9,8 @@ import android.os.Process
 import android.provider.Settings
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import org.json.JSONArray
+import org.json.JSONObject
 
 class AppDetectorModule : Module() {
   private val context: Context
@@ -65,6 +67,30 @@ class AppDetectorModule : Module() {
       val trigger = Prefs.getLaunchTrigger(context)
       Prefs.clearLaunchTrigger(context)
       trigger
+    }
+
+    // Launchable apps installed on the device, as JSON [{packageName, label}].
+    Function("getInstalledAppsJson") {
+      val pm = context.packageManager
+      val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+      val activities = pm.queryIntentActivities(intent, 0)
+      val seen = HashSet<String>()
+      val arr = JSONArray()
+      for (ri in activities) {
+        val pkg = ri.activityInfo.packageName
+        if (pkg == context.packageName) continue
+        if (!seen.add(pkg)) continue
+        val label = try {
+          ri.loadLabel(pm).toString()
+        } catch (e: Exception) {
+          pkg
+        }
+        val o = JSONObject()
+        o.put("packageName", pkg)
+        o.put("label", label)
+        arr.put(o)
+      }
+      arr.toString()
     }
   }
 

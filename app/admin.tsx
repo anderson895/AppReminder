@@ -6,26 +6,22 @@ import {
   Switch,
   Portal,
   Dialog,
-  TextInput,
   Button,
-  SegmentedButtons,
   Snackbar,
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
 import { colors, radius, spacing } from '../src/theme';
-import { OutlineButton, PrimaryButton, StatTile } from '../src/components/ui';
+import { PrimaryButton, StatTile } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import {
   getTriggerApps,
-  addTriggerApp,
-  updateTriggerApp,
   deleteTriggerApp,
   toggleTriggerApp,
   getAdminStats,
 } from '../src/db/database';
-import type { TriggerApp, AdminStats, Category } from '../src/types';
+import type { TriggerApp, AdminStats } from '../src/types';
 
 export default function Admin() {
   const router = useRouter();
@@ -33,14 +29,6 @@ export default function Admin() {
 
   const [apps, setApps] = useState<TriggerApp[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
-
-  // Add/edit dialog state
-  const [formVisible, setFormVisible] = useState(false);
-  const [editing, setEditing] = useState<TriggerApp | null>(null);
-  const [name, setName] = useState('');
-  const [pkg, setPkg] = useState('');
-  const [category, setCategory] = useState<Category>('gambling');
-  const [formError, setFormError] = useState('');
 
   // Delete confirm + toast
   const [toDelete, setToDelete] = useState<TriggerApp | null>(null);
@@ -59,40 +47,18 @@ export default function Admin() {
 
   if (!admin) return <Redirect href="/login" />;
 
-  const openAdd = () => {
-    setEditing(null);
-    setName('');
-    setPkg('');
-    setCategory('gambling');
-    setFormError('');
-    setFormVisible(true);
-  };
+  const openAdd = () => router.push('/trigger-edit');
 
-  const openEdit = (app: TriggerApp) => {
-    setEditing(app);
-    setName(app.app_name);
-    setPkg(app.package_name);
-    setCategory(app.category);
-    setFormError('');
-    setFormVisible(true);
-  };
-
-  const onSave = async () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setFormError('Please enter an app name.');
-      return;
-    }
-    if (editing) {
-      await updateTriggerApp(editing.id, trimmed, category, pkg);
-      setToast('App updated.');
-    } else {
-      await addTriggerApp(trimmed, category, pkg);
-      setToast('App added.');
-    }
-    setFormVisible(false);
-    load();
-  };
+  const openEdit = (app: TriggerApp) =>
+    router.push({
+      pathname: '/trigger-edit',
+      params: {
+        id: String(app.id),
+        name: app.app_name,
+        pkg: app.package_name,
+        category: app.category,
+      },
+    });
 
   const onConfirmDelete = async () => {
     if (toDelete) {
@@ -200,64 +166,8 @@ export default function Admin() {
         ))}
       </ScrollView>
 
-      {/* Add / edit dialog */}
+      {/* Delete confirm */}
       <Portal>
-        <Dialog
-          visible={formVisible}
-          onDismiss={() => setFormVisible(false)}
-          style={styles.dialog}
-        >
-          <Dialog.Title style={styles.dialogTitle}>
-            {editing ? 'Edit trigger app' : 'Add trigger app'}
-          </Dialog.Title>
-          <Dialog.Content>
-            <TextInput
-              mode="outlined"
-              label="app name"
-              value={name}
-              onChangeText={setName}
-              outlineColor={colors.outline}
-              activeOutlineColor={colors.teal}
-              textColor={colors.text}
-              style={styles.input}
-            />
-            <TextInput
-              mode="outlined"
-              label="package name (e.g. com.globe.gcash.android)"
-              value={pkg}
-              onChangeText={setPkg}
-              autoCapitalize="none"
-              autoCorrect={false}
-              outlineColor={colors.outline}
-              activeOutlineColor={colors.teal}
-              textColor={colors.text}
-              style={styles.input}
-            />
-            <Text style={styles.hintSmall}>
-              Required for real detection — the Android package id of the app.
-            </Text>
-            <Text style={styles.fieldLabel}>category</Text>
-            <SegmentedButtons
-              value={category}
-              onValueChange={(v) => setCategory(v as Category)}
-              buttons={[
-                { value: 'gambling', label: 'gambling' },
-                { value: 'financial', label: 'financial' },
-              ]}
-            />
-            {!!formError && <Text style={styles.formError}>{formError}</Text>}
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button textColor={colors.textMuted} onPress={() => setFormVisible(false)}>
-              cancel
-            </Button>
-            <Button textColor={colors.teal} onPress={onSave}>
-              {editing ? 'save' : 'add'}
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-
-        {/* Delete confirm */}
         <Dialog
           visible={!!toDelete}
           onDismiss={() => setToDelete(null)}

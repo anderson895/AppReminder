@@ -178,7 +178,7 @@ const DEFAULT_APPS: ReadonlyArray<{
   category: Category;
 }> = [
   { app_name: 'GCash', package_name: 'com.globe.gcash.android', category: 'financial' },
-  { app_name: 'Maya', package_name: 'ph.com.globe.paymaya', category: 'financial' },
+  { app_name: 'Maya', package_name: 'com.paymaya', category: 'financial' },
   { app_name: 'GrabPay', package_name: 'com.grabtaxi.passenger', category: 'financial' },
   { app_name: 'Online Casino', package_name: '', category: 'gambling' },
   { app_name: 'Sports Betting', package_name: '', category: 'gambling' },

@@ -52,3 +52,7 @@ export function clearPendingOpens(): void {
 export function consumeLaunchTriggerJson(): string {
   return nativeModule?.consumeLaunchTriggerJson() ?? '';
 }
+
+export function getInstalledAppsJson(): string {
+  return nativeModule?.getInstalledAppsJson() ?? '[]';
+}
