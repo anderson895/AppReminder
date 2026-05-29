@@ -18,6 +18,9 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
+      },
+      "runtimeVersion": {
+        "policy": "appVersion"
       }
     },
     "ios": {
@@ -43,6 +46,12 @@
         "projectId": "8900216c-b044-49a1-bc0e-5ce4cd709870"
       }
     },
-    "owner": "padillajoshuaanderson.pdm"
+    "owner": "padillajoshuaanderson.pdm",
+    "updates": {
+      "url": "https://u.expo.dev/8900216c-b044-49a1-bc0e-5ce4cd709870"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
   }
 }

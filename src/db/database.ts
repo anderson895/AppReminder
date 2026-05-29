@@ -90,7 +90,7 @@ export async function initDatabase(): Promise<void> {
       user_id INTEGER PRIMARY KEY,
       family_member TEXT NOT NULL DEFAULT 'mama',
       family_message TEXT NOT NULL DEFAULT 'Anak, we believe in you. Every day you choose us over gambling, you give us our future back.',
-      countdown_seconds INTEGER NOT NULL DEFAULT 10,
+      countdown_seconds INTEGER NOT NULL DEFAULT 900,
       monitoring_granted INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -113,6 +113,11 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
       'ALTER TABLE user_settings ADD COLUMN monitoring_granted INTEGER NOT NULL DEFAULT 0'
     );
   }
+
+  // Pause length is now 15 or 30 minutes — bump old short values (seconds).
+  await db.runAsync(
+    'UPDATE user_settings SET countdown_seconds = 900 WHERE countdown_seconds < 900'
+  );
 
   // Drop the unused per-user app table (replaced by the global trigger_apps).
   await db.runAsync('DROP TABLE IF EXISTS monitored_apps');

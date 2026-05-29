@@ -15,6 +15,12 @@ function first(value: string | string[] | undefined, fallback: string): string {
   return value ?? fallback;
 }
 
+function formatTime(totalSec: number): string {
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 export default function Countdown() {
   const router = useRouter();
   const { user } = useAuth();
@@ -82,8 +88,10 @@ export default function Countdown() {
             </Text>
 
             <View style={styles.ring}>
-              <Text style={styles.count}>{seconds ?? '…'}</Text>
-              <Text style={styles.countUnit}>seconds</Text>
+              <Text style={styles.count}>
+                {seconds === null ? '…' : formatTime(seconds)}
+              </Text>
+              <Text style={styles.countUnit}>remaining</Text>
             </View>
 
             <OutlineButton
@@ -152,7 +160,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: spacing(4),
   },
-  count: { color: colors.teal, fontSize: 64, fontWeight: '800', lineHeight: 70 },
+  count: { color: colors.teal, fontSize: 46, fontWeight: '800', lineHeight: 54 },
   countUnit: { color: colors.textMuted, fontSize: 14 },
   grantedIcon: {
     width: 88,

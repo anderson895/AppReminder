@@ -97,5 +97,18 @@ object Prefs {
     p(ctx).getString("reminderMessage", "We believe in you. Choose us over gambling.")
       ?: "We believe in you. Choose us over gambling."
 
-  fun getReminderSeconds(ctx: Context): Int = p(ctx).getInt("reminderSeconds", 10)
+  fun getReminderSeconds(ctx: Context): Int = p(ctx).getInt("reminderSeconds", 900)
+
+  /* ---- "don't show again" muted packages ---- */
+
+  fun addMuted(ctx: Context, pkg: String) {
+    val set = HashSet(p(ctx).getStringSet("muted", HashSet()) ?: HashSet())
+    set.add(pkg)
+    p(ctx).edit().putStringSet("muted", set).apply()
+  }
+
+  fun isMuted(ctx: Context, pkg: String): Boolean {
+    val set = p(ctx).getStringSet("muted", HashSet()) ?: HashSet()
+    return set.contains(pkg)
+  }
 }

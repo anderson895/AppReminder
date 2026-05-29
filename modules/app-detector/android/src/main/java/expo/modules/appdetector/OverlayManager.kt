@@ -41,6 +41,12 @@ class OverlayManager(private val ctx: Context) {
   private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
   private fun sp(v: Float): Float = v
 
+  private fun formatTime(totalSec: Int): String {
+    val m = totalSec / 60
+    val s = totalSec % 60
+    return String.format("%d:%02d", m, s)
+  }
+
   fun isShowing(): Boolean = showing
 
   fun show(
@@ -149,6 +155,17 @@ class OverlayManager(private val ctx: Context) {
       val cont = pillButton("I have a real reason — continue", filled = false)
       cont.setOnClickListener { showCountdown() }
       dynamic.addView(cont, lp(matchW = true, topMargin = dp(12)))
+
+      // "Don't show again" — mute reminders for this app.
+      val mute = textView("don't show again", 13f, cMuted, false)
+      mute.gravity = Gravity.CENTER
+      mute.setPadding(0, dp(14), 0, dp(2))
+      mute.setOnClickListener {
+        onOutcome("muted")
+        cleanup()
+        reopenApp()
+      }
+      dynamic.addView(mute, lp(matchW = true, topMargin = dp(6)))
     }
 
     showCountdown = {
@@ -158,14 +175,14 @@ class OverlayManager(private val ctx: Context) {
       dynamic.addView(take, lp(matchW = true, topMargin = 0))
 
       val num = TextView(ctx)
-      num.text = seconds.toString()
+      num.text = formatTime(seconds)
       num.setTextColor(cTeal)
-      num.setTextSize(TypedValue.COMPLEX_UNIT_SP, 56f)
+      num.setTextSize(TypedValue.COMPLEX_UNIT_SP, 52f)
       num.gravity = Gravity.CENTER
       num.setPadding(0, dp(10), 0, dp(4))
       dynamic.addView(num, lp(matchW = true, topMargin = 0))
 
-      val unit = textView("seconds", 13f, cMuted, false)
+      val unit = textView("remaining", 13f, cMuted, false)
       unit.gravity = Gravity.CENTER
       dynamic.addView(unit, lp(matchW = true, topMargin = 0))
 
@@ -179,7 +196,7 @@ class OverlayManager(private val ctx: Context) {
 
       timer = object : CountDownTimer((seconds * 1000).toLong(), 1000) {
         override fun onTick(ms: Long) {
-          num.text = ((ms / 1000) + 1).toString()
+          num.text = formatTime(((ms + 999) / 1000).toInt())
         }
         override fun onFinish() {
           onOutcome("proceeded")

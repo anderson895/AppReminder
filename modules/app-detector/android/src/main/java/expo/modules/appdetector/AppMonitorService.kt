@@ -122,6 +122,12 @@ class AppMonitorService : Service() {
       return
     }
 
+    // "Don't show again": user muted this app — log the open, no reminder.
+    if (Prefs.isMuted(this, pkg)) {
+      Prefs.addPending(this, pkg, appName, category, true, "opened")
+      return
+    }
+
     // Trigger app: show the reminder overlay on top of it.
     val canOverlay = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
       Settings.canDrawOverlays(this)
@@ -130,7 +136,12 @@ class AppMonitorService : Service() {
       val message = Prefs.getReminderMessage(this)
       val seconds = Prefs.getReminderSeconds(this)
       overlay.show(appName, pkg, member, message, seconds) { action ->
-        Prefs.addPending(this, pkg, appName, category, true, action)
+        if (action == "muted") {
+          Prefs.addMuted(this, pkg)
+          Prefs.addPending(this, pkg, appName, category, true, "opened")
+        } else {
+          Prefs.addPending(this, pkg, appName, category, true, action)
+        }
       }
     } else {
       // No overlay permission — fall back to the in-app reminder screen.

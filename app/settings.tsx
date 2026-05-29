@@ -10,7 +10,10 @@ import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getSettings, updateSettings, clearUserLogs } from '../src/db/database';
 
-const STEPS: readonly number[] = [5, 10, 15, 30, 60];
+const STEPS: ReadonlyArray<{ label: string; seconds: number }> = [
+  { label: '15 min', seconds: 15 * 60 },
+  { label: '30 min', seconds: 30 * 60 },
+];
 
 // Flip to `true` to expose the "clear history logs" danger zone again.
 const SHOW_CLEAR_LOGS = false;
@@ -20,7 +23,7 @@ export default function Settings() {
   const { user, logout } = useAuth();
   const [member, setMember] = useState('');
   const [message, setMessage] = useState('');
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(15 * 60);
   const [saved, setSaved] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [toast, setToast] = useState('');
@@ -114,15 +117,15 @@ export default function Settings() {
         />
 
         <Text style={styles.section}>pause length</Text>
-        <Text style={styles.help}>Seconds you wait before access is granted.</Text>
+        <Text style={styles.help}>How long you wait before access is granted.</Text>
         <View style={styles.stepRow}>
           {STEPS.map((s) => (
             <Text
-              key={s}
-              onPress={() => setCountdown(s)}
-              style={[styles.chip, countdown === s && styles.chipActive]}
+              key={s.seconds}
+              onPress={() => setCountdown(s.seconds)}
+              style={[styles.chip, countdown === s.seconds && styles.chipActive]}
             >
-              {s}s
+              {s.label}
             </Text>
           ))}
         </View>
