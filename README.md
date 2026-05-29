@@ -25,11 +25,13 @@ countdown timer, then logs every detected attempt under your account.
 
 | Concern        | Choice                            |
 | -------------- | --------------------------------- |
-| Framework      | Expo SDK 55 (React Native 0.85)   |
+| Framework      | Expo SDK 54 (React Native 0.81)   |
 | Language       | TypeScript (strict)               |
-| Navigation     | expo-router (file-based)          |
+| Navigation     | expo-router v6 (file-based)       |
 | UI             | React Native Paper + custom theme |
 | Local database | expo-sqlite (async API)           |
+
+> Targets **Expo SDK 54** so it runs in the current Expo Go client (SDK 54).
 
 ## Getting started
 

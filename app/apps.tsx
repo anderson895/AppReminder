@@ -73,6 +73,8 @@ export default function Apps() {
           <Pressable
             onPress={() => onSimulate(app)}
             disabled={!app.enabled}
+            android_ripple={{ color: 'rgba(47,227,168,0.25)', borderless: false }}
+            accessibilityRole="button"
             style={[styles.testBtn, !app.enabled && styles.testBtnOff]}
           >
             <Text style={[styles.testLabel, !app.enabled && styles.testLabelOff]}>
@@ -167,6 +169,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing(1.5),
     paddingVertical: spacing(0.5),
     marginRight: spacing(1),
+    overflow: 'hidden',
   },
   testBtnOff: { borderColor: colors.outline },
   testLabel: { color: colors.teal, fontWeight: '700', fontSize: 13 },

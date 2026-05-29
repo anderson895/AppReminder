@@ -10,10 +10,6 @@ import { useAuth } from '../src/context/AuthContext';
 import { getStats } from '../src/db/database';
 import type { Stats } from '../src/types';
 
-function peso(n: number): string {
-  return '₱ ' + Number(n || 0).toLocaleString('en-PH');
-}
-
 export default function Dashboard() {
   const router = useRouter();
   const { user } = useAuth();
@@ -66,14 +62,6 @@ export default function Dashboard() {
           <Text style={styles.heroNumber}>{stats ? stats.streakDays : '—'}</Text>
           <Text style={styles.heroSub}>days strong</Text>
 
-          {/* White money card */}
-          <View style={styles.moneyCard}>
-            <Text style={styles.moneyLabel}>money not gambled</Text>
-            <Text style={styles.moneyValue}>
-              {peso(stats ? stats.moneyNotGambled : 0)}
-            </Text>
-          </View>
-
           {/* Stat tiles */}
           <View style={styles.tileRow}>
             <StatTile
@@ -92,17 +80,22 @@ export default function Dashboard() {
           <PrimaryButton
             label="open e-wallet"
             onPress={openEWallet}
-            style={{ marginTop: spacing(2.5) }}
+            style={{ marginTop: spacing(2.5), alignSelf: 'stretch' }}
           />
           <OutlineButton
             label="view journal"
             onPress={() => router.push('/journal')}
-            style={{ marginTop: spacing(1.5) }}
+            style={{ marginTop: spacing(1.5), alignSelf: 'stretch' }}
           />
         </View>
 
         {/* Detection simulator (stands in for the native background monitor) */}
-        <Pressable style={styles.simRow} onPress={() => router.push('/apps')}>
+        <Pressable
+          style={styles.simRow}
+          onPress={() => router.push('/apps')}
+          android_ripple={{ color: 'rgba(255,255,255,0.08)', borderless: false }}
+          accessibilityRole="button"
+        >
           <Text style={styles.simText}>monitored apps — tap to test detection</Text>
           <IconButton icon="chevron-right" size={20} iconColor={colors.textMuted} />
         </Pressable>
@@ -142,23 +135,7 @@ const styles = StyleSheet.create({
     marginTop: spacing(0.5),
   },
   heroSub: { color: colors.teal, fontSize: 15, fontWeight: '600' },
-  moneyCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    paddingVertical: spacing(2.5),
-    paddingHorizontal: spacing(2),
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    marginTop: spacing(2.5),
-  },
-  moneyLabel: { color: colors.teal, fontSize: 14, fontWeight: '600' },
-  moneyValue: {
-    color: colors.tealDark,
-    fontSize: 28,
-    fontWeight: '800',
-    marginTop: spacing(0.5),
-  },
-  tileRow: { flexDirection: 'row', alignSelf: 'stretch', marginTop: spacing(1.5) },
+  tileRow: { flexDirection: 'row', alignSelf: 'stretch', marginTop: spacing(2.5) },
   simRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -167,6 +144,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingLeft: spacing(2),
     marginTop: spacing(2),
+    overflow: 'hidden',
   },
   simText: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
   greeting: {
