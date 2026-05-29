@@ -38,7 +38,8 @@ object Prefs {
     pkg: String,
     appName: String,
     category: String,
-    isTrigger: Boolean
+    isTrigger: Boolean,
+    action: String
   ) {
     val arr = try {
       JSONArray(getPending(ctx))
@@ -50,6 +51,7 @@ object Prefs {
     o.put("appName", appName)
     o.put("category", category)
     o.put("isTrigger", isTrigger)
+    o.put("action", action) // 'opened' | 'resisted' | 'proceeded'
     o.put("at", System.currentTimeMillis())
     arr.put(o)
 
@@ -77,4 +79,23 @@ object Prefs {
   fun clearLaunchTrigger(ctx: Context) {
     p(ctx).edit().remove("launchTrigger").apply()
   }
+
+  /* ---- reminder overlay configuration (from the user's settings) ---- */
+
+  fun setReminderConfig(ctx: Context, member: String, message: String, seconds: Int) {
+    p(ctx).edit()
+      .putString("reminderMember", member)
+      .putString("reminderMessage", message)
+      .putInt("reminderSeconds", seconds)
+      .apply()
+  }
+
+  fun getReminderMember(ctx: Context): String =
+    p(ctx).getString("reminderMember", "mama") ?: "mama"
+
+  fun getReminderMessage(ctx: Context): String =
+    p(ctx).getString("reminderMessage", "We believe in you. Choose us over gambling.")
+      ?: "We believe in you. Choose us over gambling."
+
+  fun getReminderSeconds(ctx: Context): Int = p(ctx).getInt("reminderSeconds", 10)
 }

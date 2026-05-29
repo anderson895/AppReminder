@@ -12,11 +12,12 @@ import {
   getStats,
   getSettings,
   getEnabledTriggerApps,
-  recordAppOpen,
+  recordEvent,
 } from '../src/db/database';
 import {
   detectionAvailable,
   startMonitoring,
+  configureReminder,
   getPendingOpens,
   clearPendingOpens,
   consumeLaunchTrigger,
@@ -38,12 +39,24 @@ export default function Dashboard() {
 
     const opens = getPendingOpens();
     if (opens.length > 0) {
-      for (const o of opens) await recordAppOpen(userId, o.appName, o.category);
+      for (const o of opens) {
+        await recordEvent({
+          userId,
+          appName: o.appName,
+          category: o.category,
+          action: o.action,
+        });
+      }
       clearPendingOpens();
     }
 
     const apps = await getEnabledTriggerApps();
     startMonitoring(apps);
+    configureReminder(
+      settings.family_member,
+      settings.family_message,
+      settings.countdown_seconds
+    );
 
     const trigger = consumeLaunchTrigger();
     if (trigger) {

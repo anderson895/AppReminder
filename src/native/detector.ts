@@ -1,5 +1,5 @@
 import * as Native from '../../modules/app-detector';
-import type { DetectedOpen, TriggerApp, Category } from '../types';
+import type { DetectedOpen, TriggerApp, Category, EventAction } from '../types';
 
 /** Whether real native detection is available (false in Expo Go / web). */
 export const detectionAvailable = Native.isAvailable;
@@ -40,6 +40,15 @@ export function startMonitoring(apps: TriggerApp[]): void {
   Native.startMonitoring(JSON.stringify(list));
 }
 
+/** Tell the native overlay what message + countdown to show. */
+export function configureReminder(
+  member: string,
+  message: string,
+  seconds: number
+): void {
+  Native.configureReminder(member, message, seconds);
+}
+
 /** Read the buffer of app-opens the service recorded while we weren't looking. */
 export function getPendingOpens(): DetectedOpen[] {
   try {
@@ -52,6 +61,7 @@ export function getPendingOpens(): DetectedOpen[] {
         appName: o.appName,
         category: (o.category as Category) ?? 'other',
         isTrigger: !!o.isTrigger,
+        action: (o.action as EventAction) ?? 'opened',
         at: typeof o.at === 'number' ? o.at : 0,
       }));
   } catch {

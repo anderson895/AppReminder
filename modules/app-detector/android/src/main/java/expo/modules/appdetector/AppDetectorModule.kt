@@ -46,6 +46,10 @@ class AppDetectorModule : Module() {
       }
     }
 
+    Function("configureReminder") { member: String, message: String, seconds: Int ->
+      Prefs.setReminderConfig(context, member, message, seconds)
+    }
+
     Function("stopMonitoring") {
       context.stopService(Intent(context, AppMonitorService::class.java))
       Prefs.setMonitoring(context, false)

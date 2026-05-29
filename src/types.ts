@@ -36,6 +36,7 @@ export interface DetectedOpen {
   appName: string;
   category: Category;
   isTrigger: boolean;
+  action: EventAction; // 'opened' | 'resisted' | 'proceeded'
   at: number; // epoch ms
 }
 

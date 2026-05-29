@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -26,6 +27,7 @@ class AppMonitorService : Service() {
   private var lastPackage: String? = null
   private var lastEventTime = 0L
   private var triggers = JSONArray()
+  private val overlay by lazy { OverlayManager(this) }
 
   companion object {
     const val CHANNEL_ID = "bettrmind_monitor"
@@ -114,9 +116,24 @@ class AppMonitorService : Service() {
     val category = match?.optString("category") ?: "other"
     val isTrigger = match != null
 
-    Prefs.addPending(this, pkg, appName, category, isTrigger)
+    if (!isTrigger) {
+      // Non-trigger app: just log the open.
+      Prefs.addPending(this, pkg, appName, category, false, "opened")
+      return
+    }
 
-    if (isTrigger) {
+    // Trigger app: show the reminder overlay on top of it.
+    val canOverlay = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+      Settings.canDrawOverlays(this)
+    if (canOverlay) {
+      val member = Prefs.getReminderMember(this)
+      val message = Prefs.getReminderMessage(this)
+      val seconds = Prefs.getReminderSeconds(this)
+      overlay.show(appName, member, message, seconds) { action ->
+        Prefs.addPending(this, pkg, appName, category, true, action)
+      }
+    } else {
+      // No overlay permission — fall back to the in-app reminder screen.
       Prefs.setLaunchTrigger(this, pkg, appName, category)
       launchReminder()
     }

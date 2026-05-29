@@ -1,7 +1,3 @@
-Using React Expo,Sqlite,React Native Paper and other modern libraries to easily create modern UIs
-
-
-
 Objectives:
     To develop an Android mobile application that requires user login and registration in order to collect
     and manage user account information before activating the system’s gambling app reminder

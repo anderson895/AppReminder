@@ -7,7 +7,11 @@ import { useRouter, Redirect } from 'expo-router';
 import { colors, radius, spacing } from '../src/theme';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
-import { setMonitoringGranted, getEnabledTriggerApps } from '../src/db/database';
+import {
+  setMonitoringGranted,
+  getEnabledTriggerApps,
+  getSettings,
+} from '../src/db/database';
 import {
   detectionAvailable,
   hasUsageAccess,
@@ -15,6 +19,7 @@ import {
   hasOverlayPermission,
   openOverlaySettings,
   startMonitoring,
+  configureReminder,
 } from '../src/native/detector';
 
 export default function Permission() {
@@ -48,6 +53,8 @@ export default function Permission() {
     if (detectionAvailable) {
       const apps = await getEnabledTriggerApps();
       startMonitoring(apps);
+      const s = await getSettings(user.id);
+      configureReminder(s.family_member, s.family_message, s.countdown_seconds);
     }
     router.replace('/dashboard');
   };
