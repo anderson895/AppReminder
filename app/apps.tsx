@@ -38,8 +38,21 @@ export default function Apps() {
   const onLogOtherApp = async () => {
     const name = otherApp.trim();
     if (!name) return;
-    await recordAppOpen(user.id, name, 'other');
+
+    // Mimic the real detector: if the opened app matches a monitored app,
+    // treat it as a trigger (show the reminder); otherwise log it as 'other'.
+    const match = apps.find(
+      (a) => a.app_name.toLowerCase() === name.toLowerCase()
+    );
     setOtherApp('');
+    if (match) {
+      router.push({
+        pathname: '/reminder',
+        params: { app: match.app_name, category: match.category },
+      });
+      return;
+    }
+    await recordAppOpen(user.id, name, 'other');
     setToast(`Logged "${name}" as opened.`);
   };
 
@@ -115,10 +128,10 @@ export default function Apps() {
         <Section title="financial" data={financial} />
 
         {/* Simulate opening an app NOT on the monitored list */}
-        <Text style={styles.section}>other apps</Text>
+        <Text style={styles.section}>simulate opening an app</Text>
         <Text style={styles.note}>
-          The system also logs apps you open that aren't monitored. Enter an app name to
-          simulate opening it — it will appear in your activity logs without a reminder.
+          Enter any app name to simulate opening it. If it matches a monitored app
+          (e.g. Maya, eBingo), the reminder appears; otherwise it's logged as “other”.
         </Text>
         <TextInput
           mode="outlined"
