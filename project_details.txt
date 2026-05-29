@@ -1,0 +1,30 @@
+Using React Expo,Sqlite,React Native Paper and other modern libraries to easily create modern UIs
+
+
+
+Objectives:
+    To develop an Android mobile application that requires user login and registration in order to collect
+    and manage user account information before activating the system’s gambling app reminder
+    functionality.
+    The application aims to detect when a user attempts to access gambling applications and financial
+    applications such as GCash, Maya, and similar apps, and display pop-up reminders together with a
+    countdown timer before access is granted, in order to encourage self-control and responsible usage.
+    The system shall also record and maintain daily activity logs indicating whether gambling-related
+    application access was triggered. Each detected gambling access attempt shall increment the logged
+    gambling activity count (+1) under the currently logged-in user account for monitoring and tracking
+    purposes
+    
+SCOPE OF WORK:
+    The system will be developed as mobile application with user authentication features
+    including login and registration to allow user account creation and identification before the reminder
+    functionality becomes active.
+    The application will monitor attempts to open gambling applications and selected financial
+    applications such as GCash, Maya, and similar apps. Once detected, the system will display reminder
+    notifications and a countdown timer before allowing the user to proceed.
+    The system will also maintain daily logs of gambling-related trigger events associated with the
+    logged-in user account, including the total number of detected gambling access attempts per day.
+    The application is intended only to provide reminders, monitoring, and short waiting periods. It will
+    not block, restrict, interfere with, or manipulate actual financial transactions, payments, fund
+    transfers, or other legitimate activities performed within the detected applications.
+
+

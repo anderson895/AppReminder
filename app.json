@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "SafeWallet",
+    "slug": "safewallet",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "safewallet",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#2C2C2E",
+      "resizeMode": "contain"
+    },
+    "android": {
+      "package": "com.safewallet.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#2C2C2E"
+      }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.safewallet.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
