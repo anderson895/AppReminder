@@ -129,7 +129,7 @@ class AppMonitorService : Service() {
       val member = Prefs.getReminderMember(this)
       val message = Prefs.getReminderMessage(this)
       val seconds = Prefs.getReminderSeconds(this)
-      overlay.show(appName, member, message, seconds) { action ->
+      overlay.show(appName, pkg, member, message, seconds) { action ->
         Prefs.addPending(this, pkg, appName, category, true, action)
       }
     } else {

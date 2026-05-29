@@ -45,6 +45,7 @@ class OverlayManager(private val ctx: Context) {
 
   fun show(
     appName: String,
+    packageName: String,
     member: String,
     message: String,
     seconds: Int,
@@ -54,11 +55,12 @@ class OverlayManager(private val ctx: Context) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(ctx)) {
       return // no permission; caller falls back
     }
-    handler.post { buildAndShow(appName, member, message, seconds, onOutcome) }
+    handler.post { buildAndShow(appName, packageName, member, message, seconds, onOutcome) }
   }
 
   private fun buildAndShow(
     appName: String,
+    packageName: String,
     member: String,
     message: String,
     seconds: Int,
@@ -121,6 +123,17 @@ class OverlayManager(private val ctx: Context) {
       } catch (e: Exception) {}
     }
 
+    // Bring the trigger app back to the foreground so it actually continues.
+    fun reopenApp() {
+      try {
+        val launch = ctx.packageManager.getLaunchIntentForPackage(packageName)
+        if (launch != null) {
+          launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          ctx.startActivity(launch)
+        }
+      } catch (e: Exception) {}
+    }
+
     lateinit var showCountdown: () -> Unit
 
     fun showButtons() {
@@ -170,7 +183,8 @@ class OverlayManager(private val ctx: Context) {
         }
         override fun onFinish() {
           onOutcome("proceeded")
-          cleanup() // dismiss → user can now use the app
+          cleanup()
+          reopenApp() // bring the trigger app back to the foreground
         }
       }.start()
     }
