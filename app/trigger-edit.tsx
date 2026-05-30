@@ -42,17 +42,22 @@ const AppRow = React.memo(function AppRow({
   onPick: (a: InstalledApp) => void;
 }) {
   return (
+    // collapsable={false} stops Android's New Architecture (Fabric) from
+    // flattening/optimizing these row views away on a sibling commit, which was
+    // blanking out the icon + text of unselected rows when another row was
+    // picked. Keep it on the row AND the text wrapper to be safe.
     <Pressable
       onPress={() => onPick(item)}
       android_ripple={{ color: 'rgba(47,227,168,0.18)' }}
       style={[styles.appRow, selected && styles.appRowSelected]}
+      collapsable={false}
     >
       <MaterialCommunityIcons
         name={selected ? 'check-circle' : 'cellphone'}
         size={22}
         color={selected ? colors.teal : colors.textMuted}
       />
-      <View style={{ flex: 1, marginLeft: spacing(1.5) }}>
+      <View style={{ flex: 1, marginLeft: spacing(1.5) }} collapsable={false}>
         <Text style={styles.appLabel}>{item.label}</Text>
         <Text style={styles.appPkg}>{item.packageName}</Text>
       </View>
