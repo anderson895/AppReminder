@@ -14,8 +14,6 @@ import {
   getStats,
   getSettings,
   getEnabledTriggerApps,
-  getBlockedEwallets,
-  getBlockedCasinos,
   recordEvent,
 } from '../src/db/database';
 import {
@@ -26,17 +24,7 @@ import {
   clearPendingOpens,
   consumeLaunchTrigger,
 } from '../src/native/detector';
-import type { Stats, TriggerApp } from '../src/types';
-
-/** Icon for a known e-wallet, falling back to a generic wallet glyph. */
-function walletIcon(name: string): React.ComponentProps<typeof MaterialCommunityIcons>['name'] {
-  const n = name.toLowerCase();
-  if (n.includes('gcash')) return 'cellphone-check';
-  if (n.includes('maya')) return 'credit-card-outline';
-  if (n.includes('grab')) return 'car';
-  if (n.includes('gotyme')) return 'bank-outline';
-  return 'wallet-outline';
-}
+import type { Stats } from '../src/types';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -44,8 +32,6 @@ export default function Dashboard() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
-  const [wallets, setWallets] = useState<TriggerApp[]>([]);
-  const [casinos, setCasinos] = useState<TriggerApp[]>([]);
   const [monitoringOn, setMonitoringOn] = useState(true);
 
   // Drain the native monitor's buffer into the activity logs, (re)start the
@@ -91,8 +77,6 @@ export default function Dashboard() {
 
   const refresh = useCallback((userId: number) => {
     getStats(userId).then(setStats);
-    getBlockedEwallets().then(setWallets);
-    getBlockedCasinos().then(setCasinos);
   }, []);
 
   useFocusEffect(
@@ -186,57 +170,6 @@ export default function Dashboard() {
           />
         </View>
 
-        {/* Read-only list of blocked e-wallets */}
-        <View style={styles.listCard}>
-          <Text style={styles.listTitle}>blocked e-wallets</Text>
-          {wallets.length === 0 ? (
-            <Text style={styles.listEmpty}>None configured yet.</Text>
-          ) : (
-            wallets.map((w, i) => (
-              <View
-                key={w.id}
-                style={[styles.walletRow, i === wallets.length - 1 && styles.walletRowLast]}
-              >
-                <View style={styles.walletIcon}>
-                  <MaterialCommunityIcons
-                    name={walletIcon(w.app_name)}
-                    size={20}
-                    color={colors.teal}
-                  />
-                </View>
-                <Text style={styles.walletName}>{w.app_name}</Text>
-                <MaterialCommunityIcons name="lock" size={16} color={colors.textFaint} />
-              </View>
-            ))
-          )}
-        </View>
-
-        {/* Read-only list of blocked casino apps (PAGCOR list) */}
-        <View style={styles.listCard}>
-          <Text style={styles.listTitle}>blocked casino apps</Text>
-          {casinos.length === 0 ? (
-            <Text style={styles.listEmpty}>None configured yet.</Text>
-          ) : (
-            casinos.map((c, i) => (
-              <View
-                key={c.id}
-                style={[styles.walletRow, i === casinos.length - 1 && styles.walletRowLast]}
-              >
-                <View style={styles.casinoIcon}>
-                  <MaterialCommunityIcons
-                    name="cards-playing-outline"
-                    size={20}
-                    color={colors.danger}
-                  />
-                </View>
-                <Text style={styles.walletName}>{c.app_name}</Text>
-                <MaterialCommunityIcons name="lock" size={16} color={colors.textFaint} />
-              </View>
-            ))
-          )}
-          <Text style={styles.sourceNote}>source: PAGCOR licensed-casino list</Text>
-        </View>
-
         {/* Suggest an app to block (goes to admin for review) */}
         <Pressable
           style={styles.suggestRow}
@@ -304,56 +237,6 @@ const makeStyles = (colors: Palette) =>
     },
     heroSub: { color: colors.teal, fontSize: 15, fontWeight: '600' },
     tileRow: { flexDirection: 'row', alignSelf: 'stretch', marginTop: spacing(2.5) },
-    listCard: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      padding: spacing(2),
-      marginTop: spacing(2),
-    },
-    listTitle: {
-      color: colors.textMuted,
-      fontSize: 12,
-      fontWeight: '700',
-      textTransform: 'uppercase',
-      letterSpacing: 1,
-      marginBottom: spacing(0.5),
-      marginLeft: spacing(0.5),
-    },
-    walletRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: spacing(1.5),
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.outline,
-    },
-    walletRowLast: { borderBottomWidth: 0 },
-    walletIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.surfaceAlt,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: spacing(1.5),
-    },
-    walletName: { color: colors.text, fontSize: 15, fontWeight: '600', flex: 1 },
-    casinoIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: colors.surfaceAlt,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: spacing(1.5),
-    },
-    sourceNote: {
-      color: colors.textFaint,
-      fontSize: 11,
-      marginTop: spacing(1),
-      marginLeft: spacing(0.5),
-      fontStyle: 'italic',
-    },
-    listEmpty: { color: colors.textMuted, fontSize: 13, padding: spacing(1) },
     suggestRow: {
       flexDirection: 'row',
       alignItems: 'center',
