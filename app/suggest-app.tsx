@@ -87,6 +87,7 @@ export default function SuggestApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<AppSuggestion[]>([]);
 
   const loadMine = useCallback(() => {
@@ -125,16 +126,22 @@ export default function SuggestApp() {
     s === 'approved' ? colors.success : s === 'rejected' ? colors.danger : colors.textMuted;
 
   const submit = async (): Promise<void> => {
+    if (busy) return; // guard against double-taps
     if (!pickedName.trim()) {
       setError('Please select an app below first.');
       return;
     }
     setError('');
-    await addSuggestion(user.id, pickedName.trim(), category, pickedPkg.trim());
-    setPickedName('');
-    setPickedPkg('');
-    setToast('Suggestion sent for admin review.');
-    loadMine();
+    setBusy(true);
+    try {
+      await addSuggestion(user.id, pickedName.trim(), category, pickedPkg.trim());
+      setPickedName('');
+      setPickedPkg('');
+      setToast('Suggestion sent for admin review.');
+      loadMine();
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -179,8 +186,9 @@ export default function SuggestApp() {
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         <PrimaryButton
-          label="Submit Suggestion"
+          label={busy ? 'Submitting…' : 'Submit Suggestion'}
           onPress={submit}
+          disabled={busy}
           style={{ marginTop: spacing(1.5) }}
         />
 
