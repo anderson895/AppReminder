@@ -272,17 +272,17 @@ export default function Settings() {
         visible={saved}
         onDismiss={() => setSaved(false)}
         duration={2000}
-        style={{ backgroundColor: colors.tealDark }}
+        style={{ backgroundColor: colors.surfaceAlt }}
       >
-        Settings saved.
+        <Text style={{ color: colors.text, fontWeight: '600' }}>Settings saved.</Text>
       </Snackbar>
       <Snackbar
         visible={!!toast}
         onDismiss={() => setToast('')}
         duration={2500}
-        style={{ backgroundColor: colors.tealDark }}
+        style={{ backgroundColor: colors.surfaceAlt }}
       >
-        {toast}
+        <Text style={{ color: colors.text, fontWeight: '600' }}>{toast}</Text>
       </Snackbar>
     </SafeAreaView>
   );

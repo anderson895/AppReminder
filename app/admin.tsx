@@ -258,9 +258,9 @@ export default function Admin() {
         visible={!!toast}
         onDismiss={() => setToast('')}
         duration={1800}
-        style={{ backgroundColor: colors.tealDark }}
+        style={{ backgroundColor: colors.surfaceAlt }}
       >
-        {toast}
+        <Text style={{ color: colors.text, fontWeight: '600' }}>{toast}</Text>
       </Snackbar>
     </SafeAreaView>
   );
