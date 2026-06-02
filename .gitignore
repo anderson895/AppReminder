@@ -11,6 +11,10 @@ web-build/
 /ios/
 /android/
 
+# generated build outputs inside local modules (NOT the module source itself)
+modules/*/android/build/
+modules/*/android/.gradle/
+
 # misc
 .DS_Store
 *.log
