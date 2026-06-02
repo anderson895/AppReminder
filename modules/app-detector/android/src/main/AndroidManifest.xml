@@ -20,5 +20,20 @@
         android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
         android:value="Responsible-gambling app-usage reminder" />
     </service>
+
+    <!-- Full-screen reminder shown over a trigger app. A real activity (not an
+         overlay) so security-hardened apps like GCash can't hide it. Locked to
+         portrait; excluded from recents so it can't be swiped back to. -->
+    <activity
+      android:name="expo.modules.appdetector.BlockerActivity"
+      android:enabled="true"
+      android:exported="false"
+      android:screenOrientation="portrait"
+      android:excludeFromRecents="true"
+      android:launchMode="singleTask"
+      android:taskAffinity="expo.modules.appdetector.blocker"
+      android:noHistory="true"
+      android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|uiMode"
+      android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
   </application>
 </manifest>

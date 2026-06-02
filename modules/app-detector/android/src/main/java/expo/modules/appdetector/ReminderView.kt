@@ -1,23 +1,15 @@
 package expo.modules.appdetector
 
 import android.content.Context
-import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
-import android.os.Build
 import android.os.CountDownTimer
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.KeyEvent
 import android.view.View
-import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -25,15 +17,24 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 /**
- * Draws the reminder + countdown as a real system overlay on top of whatever
- * app is in the foreground (requires "Display over other apps").
+ * Builds the reminder card (heading, motivation photo, message, action buttons,
+ * countdown). Used by [BlockerActivity] as its full-screen content view so the
+ * reminder is a real foreground activity — unlike an overlay, a payment app
+ * such as GCash cannot hide it via setHideOverlayWindows().
+ *
+ * [onAction] is invoked exactly once with the resolution:
+ * "resisted" | "proceeded" | "muted". The host decides what to do next.
  */
-class OverlayManager(private val ctx: Context) {
-  private val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-  private val handler = Handler(Looper.getMainLooper())
-  private var root: View? = null
+class ReminderView(
+  private val ctx: Context,
+  private val appName: String,
+  private val member: String,
+  private val message: String,
+  private val seconds: Int,
+  private val onAction: (String) -> Unit
+) {
   private var timer: CountDownTimer? = null
-  private var showing = false
+  private var fired = false
 
   // Theme colors (match the BettrMind app)
   private val cBg = Color.parseColor("#2C2C2E")
@@ -45,7 +46,6 @@ class OverlayManager(private val ctx: Context) {
   private val cOutline = Color.parseColor("#54555A")
 
   private fun dp(v: Int): Int = (v * ctx.resources.displayMetrics.density).toInt()
-  private fun sp(v: Float): Float = v
 
   private fun formatTime(totalSec: Int): String {
     val m = totalSec / 60
@@ -53,33 +53,17 @@ class OverlayManager(private val ctx: Context) {
     return String.format("%d:%02d", m, s)
   }
 
-  fun isShowing(): Boolean = showing
-
-  fun show(
-    appName: String,
-    packageName: String,
-    member: String,
-    message: String,
-    seconds: Int,
-    onOutcome: (String) -> Unit // 'resisted' | 'proceeded'
-  ) {
-    if (showing) return
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(ctx)) {
-      return // no permission; caller falls back
-    }
-    handler.post { buildAndShow(appName, packageName, member, message, seconds, onOutcome) }
+  private fun emit(action: String) {
+    if (fired) return
+    fired = true
+    timer?.cancel(); timer = null
+    onAction(action)
   }
 
-  private fun buildAndShow(
-    appName: String,
-    packageName: String,
-    member: String,
-    message: String,
-    seconds: Int,
-    onOutcome: (String) -> Unit
-  ) {
+  fun build(): View {
     val scrim = FrameLayout(ctx)
-    scrim.setBackgroundColor(Color.parseColor("#E6000000"))
+    // Near-opaque dark backdrop so the app underneath is fully hidden.
+    scrim.setBackgroundColor(Color.parseColor("#F2000000"))
 
     val card = LinearLayout(ctx)
     card.orientation = LinearLayout.VERTICAL
@@ -93,11 +77,11 @@ class OverlayManager(private val ctx: Context) {
     cardLp.leftMargin = dp(20); cardLp.rightMargin = dp(20)
     scrim.addView(card, cardLp)
 
-    val heading = textView("before you continue…", 22f, cText, true)
+    val heading = textView("Before you continue…", 22f, cText, true)
     card.addView(heading)
 
     val ctxLine = TextView(ctx)
-    ctxLine.text = "you're opening $appName"
+    ctxLine.text = "You're opening $appName"
     ctxLine.setTextColor(cMuted)
     ctxLine.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
     ctxLine.setPadding(0, dp(4), 0, dp(16))
@@ -125,7 +109,7 @@ class OverlayManager(private val ctx: Context) {
     msgBox.background = rounded(cTealDark, dp(16))
     msgBox.setPadding(dp(18), dp(16), dp(18), dp(16))
     card.addView(msgBox, lp(matchW = true, topMargin = 0))
-    msgBox.addView(textView("from $member", 13f, cTeal, true))
+    msgBox.addView(textView("From $member", 13f, cTeal, true))
     val msgT = textView("“$message”", 17f, cText, true)
     msgT.setPadding(0, dp(6), 0, 0)
     msgBox.addView(msgT)
@@ -135,43 +119,12 @@ class OverlayManager(private val ctx: Context) {
     dynamic.orientation = LinearLayout.VERTICAL
     card.addView(dynamic, lp(matchW = true, topMargin = dp(20)))
 
-    fun cleanup() {
-      timer?.cancel(); timer = null
-      try { root?.let { wm.removeView(it) } } catch (e: Exception) {}
-      root = null
-      showing = false
-    }
-
-    fun goHome() {
-      try {
-        val home = Intent(Intent.ACTION_MAIN)
-        home.addCategory(Intent.CATEGORY_HOME)
-        home.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        ctx.startActivity(home)
-      } catch (e: Exception) {}
-    }
-
-    // Bring the trigger app back to the foreground so it actually continues.
-    fun reopenApp() {
-      try {
-        val launch = ctx.packageManager.getLaunchIntentForPackage(packageName)
-        if (launch != null) {
-          launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-          ctx.startActivity(launch)
-        }
-      } catch (e: Exception) {}
-    }
-
     lateinit var showCountdown: () -> Unit
 
     fun showButtons() {
       dynamic.removeAllViews()
       val resist = pillButton("I don't need to open this", filled = true)
-      resist.setOnClickListener {
-        onOutcome("resisted")
-        cleanup()
-        goHome()
-      }
+      resist.setOnClickListener { emit("resisted") }
       dynamic.addView(resist, lp(matchW = true, topMargin = 0))
 
       val cont = pillButton("I have a real reason — continue", filled = false)
@@ -179,20 +132,16 @@ class OverlayManager(private val ctx: Context) {
       dynamic.addView(cont, lp(matchW = true, topMargin = dp(12)))
 
       // "Don't show again" — mute reminders for this app.
-      val mute = textView("don't show again", 13f, cMuted, false)
+      val mute = textView("Don't show again", 13f, cMuted, false)
       mute.gravity = Gravity.CENTER
       mute.setPadding(0, dp(14), 0, dp(2))
-      mute.setOnClickListener {
-        onOutcome("muted")
-        cleanup()
-        reopenApp()
-      }
+      mute.setOnClickListener { emit("muted") }
       dynamic.addView(mute, lp(matchW = true, topMargin = dp(6)))
     }
 
     showCountdown = {
       dynamic.removeAllViews()
-      val take = textView("take a breath", 18f, cText, true)
+      val take = textView("Take a breath", 18f, cText, true)
       take.gravity = Gravity.CENTER
       dynamic.addView(take, lp(matchW = true, topMargin = 0))
 
@@ -204,16 +153,12 @@ class OverlayManager(private val ctx: Context) {
       num.setPadding(0, dp(10), 0, dp(4))
       dynamic.addView(num, lp(matchW = true, topMargin = 0))
 
-      val unit = textView("remaining", 13f, cMuted, false)
+      val unit = textView("Remaining", 13f, cMuted, false)
       unit.gravity = Gravity.CENTER
       dynamic.addView(unit, lp(matchW = true, topMargin = 0))
 
-      val changed = pillButton("actually, I changed my mind", filled = false)
-      changed.setOnClickListener {
-        onOutcome("resisted")
-        cleanup()
-        goHome()
-      }
+      val changed = pillButton("Actually, I changed my mind", filled = false)
+      changed.setOnClickListener { emit("resisted") }
       dynamic.addView(changed, lp(matchW = true, topMargin = dp(20)))
 
       timer = object : CountDownTimer((seconds * 1000).toLong(), 1000) {
@@ -221,49 +166,22 @@ class OverlayManager(private val ctx: Context) {
           num.text = formatTime(((ms + 999) / 1000).toInt())
         }
         override fun onFinish() {
-          onOutcome("proceeded")
-          cleanup()
-          reopenApp() // bring the trigger app back to the foreground
+          emit("proceeded")
         }
       }.start()
     }
 
     showButtons()
 
-    val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-    else
-      @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+    // Cancel the countdown if the view goes away unexpectedly.
+    scrim.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+      override fun onViewAttachedToWindow(v: View) {}
+      override fun onViewDetachedFromWindow(v: View) {
+        timer?.cancel(); timer = null
+      }
+    })
 
-    val params = WindowManager.LayoutParams(
-      WindowManager.LayoutParams.MATCH_PARENT,
-      WindowManager.LayoutParams.MATCH_PARENT,
-      type,
-      // Cover the whole screen (incl. system bars) and stay focusable so the
-      // overlay captures touches AND the back key — the app underneath can't be
-      // used or dismissed-to until the reminder is resolved.
-      WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
-      android.graphics.PixelFormat.TRANSLUCENT
-    )
-    // Lock the reminder to portrait, even if the foreground app is landscape.
-    params.screenOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-
-    // Swallow the back button so it can't dismiss the reminder.
-    scrim.isFocusableInTouchMode = true
-    scrim.setOnKeyListener { _, keyCode, event ->
-      keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP
-    }
-
-    try {
-      wm.addView(scrim, params)
-      scrim.requestFocus()
-      root = scrim
-      showing = true
-    } catch (e: Exception) {
-      showing = false
-    }
+    return scrim
   }
 
   /* ---------- view helpers ---------- */
@@ -318,7 +236,6 @@ class OverlayManager(private val ctx: Context) {
           if (path != null) java.io.FileInputStream(path) else null
         }
       }
-      // First pass: read bounds to compute a sample size.
       val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
       openStream()?.use { BitmapFactory.decodeStream(it, null, bounds) }
       var sample = 1

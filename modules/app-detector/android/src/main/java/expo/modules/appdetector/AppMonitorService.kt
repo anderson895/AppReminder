@@ -27,12 +27,11 @@ class AppMonitorService : Service() {
   private var lastPackage: String? = null
   private var lastEventTime = 0L
   private var triggers = JSONArray()
-  private val overlay by lazy { OverlayManager(this) }
 
   companion object {
     const val CHANNEL_ID = "bettrmind_monitor"
     const val NOTIF_ID = 7321
-    const val POLL_MS = 1500L
+    const val POLL_MS = 800L
   }
 
   private val poll = object : Runnable {
@@ -128,20 +127,24 @@ class AppMonitorService : Service() {
       return
     }
 
-    // Trigger app: show the reminder overlay on top of it.
+    // Trigger app: launch the full-screen blocker activity over it. Starting an
+    // activity from the background is permitted here because the app holds the
+    // SYSTEM_ALERT_WINDOW permission. An activity (vs. an overlay) can't be
+    // hidden by security-hardened apps like GCash.
     val canOverlay = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
       Settings.canDrawOverlays(this)
     if (canOverlay) {
-      val member = Prefs.getReminderMember(this)
-      val message = Prefs.getReminderMessage(this)
-      val seconds = Prefs.getReminderSeconds(this)
-      overlay.show(appName, pkg, member, message, seconds) { action ->
-        if (action == "muted") {
-          Prefs.addMuted(this, pkg, appName)
-          Prefs.addPending(this, pkg, appName, category, true, "opened")
-        } else {
-          Prefs.addPending(this, pkg, appName, category, true, action)
-        }
+      try {
+        val intent = Intent(this, BlockerActivity::class.java)
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+          .putExtra("packageName", pkg)
+          .putExtra("appName", appName)
+          .putExtra("category", category)
+        startActivity(intent)
+      } catch (e: Exception) {
+        // Background activity start blocked — fall back to the in-app reminder.
+        Prefs.setLaunchTrigger(this, pkg, appName, category)
+        launchReminder()
       }
     } else {
       // No overlay permission — fall back to the in-app reminder screen.
