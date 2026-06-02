@@ -433,6 +433,14 @@ export async function getBlockedEwallets(): Promise<TriggerApp[]> {
   );
 }
 
+/** The enabled gambling/casino apps (PAGCOR list) shown read-only on the main page. */
+export async function getBlockedCasinos(): Promise<TriggerApp[]> {
+  const db = await getDb();
+  return db.getAllAsync<TriggerApp>(
+    "SELECT * FROM trigger_apps WHERE enabled = 1 AND category = 'gambling' ORDER BY app_name ASC"
+  );
+}
+
 /* ----------------------- app suggestions (user) -------------------- */
 
 /** A user proposes an app to block; it waits for admin review. */

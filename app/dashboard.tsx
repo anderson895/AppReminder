@@ -15,6 +15,7 @@ import {
   getSettings,
   getEnabledTriggerApps,
   getBlockedEwallets,
+  getBlockedCasinos,
   recordEvent,
 } from '../src/db/database';
 import {
@@ -44,6 +45,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [wallets, setWallets] = useState<TriggerApp[]>([]);
+  const [casinos, setCasinos] = useState<TriggerApp[]>([]);
   const [monitoringOn, setMonitoringOn] = useState(true);
 
   // Drain the native monitor's buffer into the activity logs, (re)start the
@@ -90,6 +92,7 @@ export default function Dashboard() {
   const refresh = useCallback((userId: number) => {
     getStats(userId).then(setStats);
     getBlockedEwallets().then(setWallets);
+    getBlockedCasinos().then(setCasinos);
   }, []);
 
   useFocusEffect(
@@ -208,6 +211,32 @@ export default function Dashboard() {
           )}
         </View>
 
+        {/* Read-only list of blocked casino apps (PAGCOR list) */}
+        <View style={styles.listCard}>
+          <Text style={styles.listTitle}>blocked casino apps</Text>
+          {casinos.length === 0 ? (
+            <Text style={styles.listEmpty}>None configured yet.</Text>
+          ) : (
+            casinos.map((c, i) => (
+              <View
+                key={c.id}
+                style={[styles.walletRow, i === casinos.length - 1 && styles.walletRowLast]}
+              >
+                <View style={styles.casinoIcon}>
+                  <MaterialCommunityIcons
+                    name="cards-playing-outline"
+                    size={20}
+                    color={colors.danger}
+                  />
+                </View>
+                <Text style={styles.walletName}>{c.app_name}</Text>
+                <MaterialCommunityIcons name="lock" size={16} color={colors.textFaint} />
+              </View>
+            ))
+          )}
+          <Text style={styles.sourceNote}>source: PAGCOR licensed-casino list</Text>
+        </View>
+
         {/* Suggest an app to block (goes to admin for review) */}
         <Pressable
           style={styles.suggestRow}
@@ -308,6 +337,22 @@ const makeStyles = (colors: Palette) =>
       marginRight: spacing(1.5),
     },
     walletName: { color: colors.text, fontSize: 15, fontWeight: '600', flex: 1 },
+    casinoIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: colors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing(1.5),
+    },
+    sourceNote: {
+      color: colors.textFaint,
+      fontSize: 11,
+      marginTop: spacing(1),
+      marginLeft: spacing(0.5),
+      fontStyle: 'italic',
+    },
     listEmpty: { color: colors.textMuted, fontSize: 13, padding: spacing(1) },
     suggestRow: {
       flexDirection: 'row',
