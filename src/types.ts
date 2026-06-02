@@ -46,6 +46,26 @@ export interface UserSettings {
   family_message: string;
   countdown_seconds: number;
   monitoring_granted: number; // 0 | 1 — user consented to app monitoring
+  motivation_photo: string; // local uri of the photo shown on the friction popup ('' = none)
+}
+
+export type SuggestionStatus = 'pending' | 'approved' | 'rejected';
+
+/** A user-submitted app-to-block, awaiting admin review. */
+export interface AppSuggestion {
+  id: number;
+  user_id: number;
+  app_name: string;
+  package_name: string;
+  category: Category;
+  status: SuggestionStatus;
+  created_at: string;
+}
+
+/** A pending suggestion joined with the submitter (for the admin queue). */
+export interface SuggestionWithUser extends AppSuggestion {
+  user_name: string;
+  user_email: string;
 }
 
 export interface AccessEvent {
@@ -71,6 +91,7 @@ export interface Stats {
   longestStreakWeeks: number;
   longestStreakDays: number;
   urgesResisted: number;
+  urgesBlocked: number; // times a casino app was opened and the reminder intervened
   gamblingAttempts: number;
 }
 

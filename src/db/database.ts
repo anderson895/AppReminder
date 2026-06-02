@@ -11,6 +11,8 @@ import type {
   Category,
   EventAction,
   LoginResult,
+  AppSuggestion,
+  SuggestionWithUser,
 } from '../types';
 
 /**
@@ -92,6 +94,20 @@ export async function initDatabase(): Promise<void> {
       family_message TEXT NOT NULL DEFAULT 'Anak, we believe in you. Every day you choose us over gambling, you give us our future back.',
       countdown_seconds INTEGER NOT NULL DEFAULT 900,
       monitoring_granted INTEGER NOT NULL DEFAULT 0,
+      motivation_photo TEXT NOT NULL DEFAULT '',  -- local uri of the photo shown on the friction popup
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    -- User-submitted suggestions for apps to block. The admin reviews each
+    -- (pending -> approved/rejected); approving copies it into trigger_apps.
+    CREATE TABLE IF NOT EXISTS app_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      app_name TEXT NOT NULL,
+      package_name TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL,            -- 'gambling' | 'financial'
+      status TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'approved' | 'rejected'
+      created_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   `);
@@ -111,6 +127,13 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   if (!hasCol('monitoring_granted')) {
     await db.runAsync(
       'ALTER TABLE user_settings ADD COLUMN monitoring_granted INTEGER NOT NULL DEFAULT 0'
+    );
+  }
+
+  // Add the friction-popup photo uri if missing.
+  if (!hasCol('motivation_photo')) {
+    await db.runAsync(
+      "ALTER TABLE user_settings ADD COLUMN motivation_photo TEXT NOT NULL DEFAULT ''"
     );
   }
 
@@ -182,12 +205,27 @@ const DEFAULT_APPS: ReadonlyArray<{
   package_name: string;
   category: Category;
 }> = [
+  // E-wallets / financial apps shown on the main page as "blocked".
   { app_name: 'GCash', package_name: 'com.globe.gcash.android', category: 'financial' },
   { app_name: 'Maya', package_name: 'com.paymaya', category: 'financial' },
+  { app_name: 'GoTyme', package_name: '', category: 'financial' },
   { app_name: 'GrabPay', package_name: 'com.grabtaxi.passenger', category: 'financial' },
-  { app_name: 'Online Casino', package_name: '', category: 'gambling' },
-  { app_name: 'Sports Betting', package_name: '', category: 'gambling' },
-  { app_name: 'eBingo', package_name: '', category: 'gambling' },
+  // Casino brands from PAGCOR's official list of approved/licensed online
+  // casinos (List of PAGCOR-Approved Registered Brands as of May 28, 2026).
+  // Most are web-based; package_name is left blank and an admin can attach a
+  // package via the installed-app picker for any that ship a dedicated app.
+  { app_name: 'Midori Online', package_name: '', category: 'gambling' },
+  { app_name: 'Solaire Online', package_name: '', category: 'gambling' },
+  { app_name: "D'Heights Online", package_name: '', category: 'gambling' },
+  { app_name: 'Thunderbird Online Rizal', package_name: '', category: 'gambling' },
+  { app_name: 'HANN Online', package_name: '', category: 'gambling' },
+  { app_name: 'Lavie Casino', package_name: '', category: 'gambling' },
+  { app_name: 'Winford Online', package_name: '', category: 'gambling' },
+  { app_name: 'Casino Plus', package_name: '', category: 'gambling' },
+  { app_name: 'Okada Online Casino', package_name: '', category: 'gambling' },
+  { app_name: 'Thunderbird Online Poro', package_name: '', category: 'gambling' },
+  { app_name: 'NWR Epic World', package_name: '', category: 'gambling' },
+  { app_name: 'Casino Maxx', package_name: '', category: 'gambling' },
 ];
 
 /* ------------------------------ auth ------------------------------- */
@@ -281,16 +319,44 @@ export async function updateSettings(
     family_member: string;
     family_message: string;
     countdown_seconds: number;
+    motivation_photo?: string;
   }
 ): Promise<UserSettings> {
   const db = await getDb();
-  await db.runAsync(
-    `UPDATE user_settings
-       SET family_member = ?, family_message = ?, countdown_seconds = ?
-     WHERE user_id = ?`,
-    [patch.family_member, patch.family_message, patch.countdown_seconds, userId]
-  );
+  if (patch.motivation_photo !== undefined) {
+    await db.runAsync(
+      `UPDATE user_settings
+         SET family_member = ?, family_message = ?, countdown_seconds = ?, motivation_photo = ?
+       WHERE user_id = ?`,
+      [
+        patch.family_member,
+        patch.family_message,
+        patch.countdown_seconds,
+        patch.motivation_photo,
+        userId,
+      ]
+    );
+  } else {
+    await db.runAsync(
+      `UPDATE user_settings
+         SET family_member = ?, family_message = ?, countdown_seconds = ?
+       WHERE user_id = ?`,
+      [patch.family_member, patch.family_message, patch.countdown_seconds, userId]
+    );
+  }
   return getSettings(userId);
+}
+
+/** Save just the friction-popup photo uri (used by the setup-motivation step). */
+export async function setMotivationPhoto(
+  userId: number,
+  uri: string
+): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'UPDATE user_settings SET motivation_photo = ? WHERE user_id = ?',
+    [uri, userId]
+  );
 }
 
 export async function setMonitoringGranted(
@@ -357,6 +423,80 @@ export async function toggleTriggerApp(id: number, enabled: boolean): Promise<vo
     enabled ? 1 : 0,
     id,
   ]);
+}
+
+/** The enabled financial apps shown read-only on the main page as "blocked". */
+export async function getBlockedEwallets(): Promise<TriggerApp[]> {
+  const db = await getDb();
+  return db.getAllAsync<TriggerApp>(
+    "SELECT * FROM trigger_apps WHERE enabled = 1 AND category = 'financial' ORDER BY app_name ASC"
+  );
+}
+
+/* ----------------------- app suggestions (user) -------------------- */
+
+/** A user proposes an app to block; it waits for admin review. */
+export async function addSuggestion(
+  userId: number,
+  appName: string,
+  category: Category,
+  packageName = ''
+): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT INTO app_suggestions (user_id, app_name, package_name, category, status, created_at)
+     VALUES (?, ?, ?, ?, 'pending', ?)`,
+    [userId, appName.trim(), packageName.trim(), category, new Date().toISOString()]
+  );
+}
+
+/** A user's own suggestions (so they can see status), newest first. */
+export async function getUserSuggestions(userId: number): Promise<AppSuggestion[]> {
+  const db = await getDb();
+  return db.getAllAsync<AppSuggestion>(
+    'SELECT * FROM app_suggestions WHERE user_id = ? ORDER BY created_at DESC',
+    [userId]
+  );
+}
+
+/** All pending suggestions for the admin review queue, with the submitter name. */
+export async function getPendingSuggestions(): Promise<SuggestionWithUser[]> {
+  const db = await getDb();
+  return db.getAllAsync<SuggestionWithUser>(
+    `SELECT s.*, u.name AS user_name, u.email AS user_email
+       FROM app_suggestions s
+       JOIN users u ON u.id = s.user_id
+      WHERE s.status = 'pending'
+      ORDER BY s.created_at ASC`
+  );
+}
+
+export async function countPendingSuggestions(): Promise<number> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ c: number }>(
+    "SELECT COUNT(*) AS c FROM app_suggestions WHERE status = 'pending'"
+  );
+  return row?.c ?? 0;
+}
+
+/** Approve a suggestion: copy it into the global trigger list, mark approved. */
+export async function approveSuggestion(id: number): Promise<void> {
+  const db = await getDb();
+  const s = await db.getFirstAsync<AppSuggestion>(
+    'SELECT * FROM app_suggestions WHERE id = ?',
+    [id]
+  );
+  if (!s) return;
+  await db.runAsync(
+    'INSERT INTO trigger_apps (app_name, package_name, category, enabled, created_at) VALUES (?, ?, ?, 1, ?)',
+    [s.app_name, s.package_name, s.category, new Date().toISOString()]
+  );
+  await db.runAsync("UPDATE app_suggestions SET status = 'approved' WHERE id = ?", [id]);
+}
+
+export async function rejectSuggestion(id: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync("UPDATE app_suggestions SET status = 'rejected' WHERE id = ?", [id]);
 }
 
 /* ----------------------------- admin stats ------------------------- */
@@ -487,6 +627,16 @@ export async function getStats(userId: number): Promise<Stats> {
   const totalResisted = totals?.total_resisted ?? 0;
   const totalGambling = totals?.total_gambling ?? 0;
 
+  // "Urges blocked": every time a casino/gambling app was opened and the
+  // reminder stepped in (whether the user resisted or proceeded).
+  const blocked = await db.getFirstAsync<{ c: number }>(
+    `SELECT COUNT(*) AS c FROM access_events
+      WHERE user_id = ? AND category = 'gambling'
+        AND action IN ('resisted', 'proceeded')`,
+    [userId]
+  );
+  const urgesBlocked = blocked?.c ?? 0;
+
   // Bet-free streak: consecutive days (ending today) with zero gambling attempts.
   const logs = await db.getAllAsync<{ day: string; gambling_count: number }>(
     'SELECT day, gambling_count FROM daily_logs WHERE user_id = ? ORDER BY day DESC',
@@ -510,6 +660,7 @@ export async function getStats(userId: number): Promise<Stats> {
     longestStreakWeeks: Math.max(1, Math.floor(longest / 7)),
     longestStreakDays: longest,
     urgesResisted: totalResisted,
+    urgesBlocked,
     gamblingAttempts: totalGambling,
   };
 }

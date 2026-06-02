@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,14 @@ import {
   type ViewStyle,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, radius, spacing } from '../theme';
+import { radius, spacing, type Palette } from '../theme';
+import { useTheme } from '../context/ThemeContext';
+
+/** Memoized, theme-aware stylesheet shared by the components below. */
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => makeStyles(colors), [colors]);
+}
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -66,6 +73,7 @@ interface ButtonProps {
 
 /** Mint pill — the primary call to action (e.g. "open e-wallet"). */
 export function PrimaryButton({ label, onPress, style, disabled }: ButtonProps) {
+  const styles = useStyles();
   const { scale, pressIn, pressOut } = usePressScale();
   const m = useButtonMetrics();
   const handlePress = useCallback(() => {
@@ -103,6 +111,7 @@ export function PrimaryButton({ label, onPress, style, disabled }: ButtonProps) 
 
 /** Dark outlined pill — secondary action (e.g. "view journal"). */
 export function OutlineButton({ label, onPress, style, disabled }: ButtonProps) {
+  const styles = useStyles();
   const { scale, pressIn, pressOut } = usePressScale();
   const m = useButtonMetrics();
   const handlePress = useCallback(() => {
@@ -146,6 +155,7 @@ interface StatTileProps {
 
 /** Small dark stat tile (e.g. "3 urges resisted"). */
 export function StatTile({ value, label, style }: StatTileProps) {
+  const styles = useStyles();
   return (
     <View style={[styles.tile, style]}>
       <Text style={styles.tileValue}>{value}</Text>
@@ -156,6 +166,7 @@ export function StatTile({ value, label, style }: StatTileProps) {
 
 /** BettrMind branded top bar with a faux clock, matching the mockups. */
 export function BrandHeader({ time = '9:41' }: { time?: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.header}>
       <Text style={styles.brand}>BettrMind</Text>
@@ -164,7 +175,7 @@ export function BrandHeader({ time = '9:41' }: { time?: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   primary: {
     backgroundColor: colors.teal,
     borderRadius: radius.md,
