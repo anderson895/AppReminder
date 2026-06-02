@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,13 +18,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Link } from 'expo-router';
 
-import { colors, spacing } from '../src/theme';
+import { spacing, type Palette } from '../src/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { PrimaryButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { TERMS_TEXT } from '../src/content/terms';
 
 export default function Register() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -205,7 +208,7 @@ export default function Register() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, justifyContent: 'center', padding: spacing(3) },
   title: { color: colors.text, fontSize: 24, fontWeight: '800' },

@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router';
 
-import { colors, spacing } from '../src/theme';
+import { spacing, type Palette } from '../src/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getSettings, recordEvent } from '../src/db/database';
@@ -23,6 +24,8 @@ function formatTime(totalSec: number): string {
 
 export default function Countdown() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
   const params = useLocalSearchParams<{ app?: string; category?: string }>();
   const appName = first(params.app, 'GCash');
@@ -129,7 +132,7 @@ export default function Countdown() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   body: {
     flex: 1,

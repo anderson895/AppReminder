@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, AppState, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, Redirect } from 'expo-router';
 
-import { colors, radius, spacing } from '../src/theme';
+import { radius, spacing, type Palette } from '../src/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import {
@@ -22,8 +23,16 @@ import {
   configureReminder,
 } from '../src/native/detector';
 
+/** Memoized, theme-aware styles shared by Permission + PermRow. */
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => makeStyles(colors), [colors]);
+}
+
 export default function Permission() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useStyles();
   const { user } = useAuth();
   const [usageOk, setUsageOk] = useState(false);
   const [overlayOk, setOverlayOk] = useState(false);
@@ -56,10 +65,10 @@ export default function Permission() {
       const s = await getSettings(user.id);
       configureReminder(s.family_member, s.family_message, s.countdown_seconds);
     }
-    router.replace('/dashboard');
+    router.replace('/setup-motivation');
   };
 
-  const skip = () => router.replace('/dashboard');
+  const skip = () => router.replace('/setup-motivation');
 
   // In Expo Go there is no native module — record consent only, explain the limit.
   if (!detectionAvailable) {
@@ -149,6 +158,8 @@ function PermRow({
   granted: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     <View style={styles.permCard}>
       <View style={styles.permIcon}>
@@ -175,7 +186,7 @@ function PermRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing(3), paddingBottom: spacing(5), flexGrow: 1 },
   iconCircle: {

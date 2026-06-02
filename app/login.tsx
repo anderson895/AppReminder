@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,13 +12,16 @@ import { TextInput, HelperText } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Link } from 'expo-router';
 
-import { colors, spacing } from '../src/theme';
+import { spacing, type Palette } from '../src/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { PrimaryButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getSettings } from '../src/db/database';
 
 export default function Login() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -135,7 +138,7 @@ export default function Login() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: {
     flexGrow: 1,

@@ -1,14 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextInput, IconButton, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, Redirect } from 'expo-router';
 
-import { colors, radius, spacing } from '../src/theme';
+import { radius, spacing, type Palette, type ThemeMode } from '../src/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getSettings, updateSettings, clearUserLogs } from '../src/db/database';
+
+const THEMES: ReadonlyArray<{ mode: ThemeMode; label: string }> = [
+  { mode: 'navy', label: 'Navy' },
+  { mode: 'purple', label: 'Purple' },
+];
 
 const STEPS: ReadonlyArray<{ label: string; seconds: number }> = [
   { label: '15 min', seconds: 15 * 60 },
@@ -20,6 +26,8 @@ const SHOW_CLEAR_LOGS = false;
 
 export default function Settings() {
   const router = useRouter();
+  const { colors, mode, setMode } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user, logout } = useAuth();
   const [member, setMember] = useState('');
   const [message, setMessage] = useState('');
@@ -95,6 +103,20 @@ export default function Settings() {
             <Text style={styles.accName}>{user.name}</Text>
             <Text style={styles.accEmail}>{user.email}</Text>
           </View>
+        </View>
+
+        <Text style={styles.section}>appearance</Text>
+        <Text style={styles.help}>Pick the color theme for the app.</Text>
+        <View style={styles.stepRow}>
+          {THEMES.map((t) => (
+            <Text
+              key={t.mode}
+              onPress={() => setMode(t.mode)}
+              style={[styles.chip, mode === t.mode && styles.chipActive]}
+            >
+              {t.label}
+            </Text>
+          ))}
         </View>
 
         <Text style={styles.section}>reminder message</Text>
@@ -214,7 +236,7 @@ export default function Settings() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

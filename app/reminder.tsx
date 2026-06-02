@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useMemo } from 'react';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router';
 
-import { colors, radius, spacing } from '../src/theme';
+import { radius, spacing, type Palette } from '../src/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getSettings, recordEvent } from '../src/db/database';
@@ -17,6 +18,8 @@ function first(value: string | string[] | undefined, fallback: string): string {
 
 export default function Reminder() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
   const params = useLocalSearchParams<{ app?: string; category?: string }>();
   const appName = first(params.app, 'GCash');
@@ -62,10 +65,20 @@ export default function Reminder() {
           you're opening <Text style={styles.appName}>{appName}</Text>
         </Text>
 
-        {/* Family photo card */}
+        {/* Motivation photo card — the user's uploaded photo, or a placeholder */}
         <View style={styles.photoCard}>
-          <MaterialCommunityIcons name="account-group" size={56} color={colors.teal} />
-          <Text style={styles.photoLabel}>your family photo</Text>
+          {settings?.motivation_photo ? (
+            <Image
+              source={{ uri: settings.motivation_photo }}
+              style={styles.photo}
+              resizeMode="cover"
+            />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="account-group" size={56} color={colors.teal} />
+              <Text style={styles.photoLabel}>your motivation photo</Text>
+            </>
+          )}
         </View>
 
         {/* Message card */}
@@ -90,7 +103,7 @@ export default function Reminder() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   bar: {
     flexDirection: 'row',
@@ -114,6 +127,7 @@ const styles = StyleSheet.create({
     marginTop: spacing(2.5),
   },
   photoLabel: { color: colors.text, marginTop: spacing(1), fontSize: 14 },
+  photo: { width: '100%', height: '100%', borderRadius: radius.md },
   messageCard: {
     backgroundColor: colors.tealDark,
     borderRadius: radius.md,

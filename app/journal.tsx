@@ -1,19 +1,22 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconButton } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
-import { colors, radius, spacing } from '../src/theme';
+import { radius, spacing, type Palette } from '../src/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../src/context/AuthContext';
 import { getDailyLogs, getRecentEvents, todayKey } from '../src/db/database';
 import type { DailyLog, AccessEvent, EventAction } from '../src/types';
 
-const ACTION_META: Record<
+const makeActionMeta = (
+  colors: Palette
+): Record<
   EventAction,
   { icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; label: string }
-> = {
+> => ({
   resisted: { icon: 'shield-check', color: colors.teal, label: 'urge resisted' },
   proceeded: {
     icon: 'arrow-right-circle',
@@ -21,7 +24,7 @@ const ACTION_META: Record<
     label: 'proceeded after pause',
   },
   opened: { icon: 'cellphone-arrow-down', color: colors.textMuted, label: 'app opened' },
-};
+});
 
 function prettyDate(key: string): string {
   if (key === todayKey()) return 'Today';
@@ -40,6 +43,9 @@ function prettyTime(iso: string): string {
 
 export default function Journal() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const ACTION_META = useMemo(() => makeActionMeta(colors), [colors]);
   const { user } = useAuth();
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [events, setEvents] = useState<AccessEvent[]>([]);
@@ -148,7 +154,7 @@ export default function Journal() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
