@@ -2,6 +2,7 @@ package expo.modules.appdetector
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -14,6 +15,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
@@ -237,13 +239,26 @@ class OverlayManager(private val ctx: Context) {
       WindowManager.LayoutParams.MATCH_PARENT,
       WindowManager.LayoutParams.MATCH_PARENT,
       type,
+      // Cover the whole screen (incl. system bars) and stay focusable so the
+      // overlay captures touches AND the back key — the app underneath can't be
+      // used or dismissed-to until the reminder is resolved.
       WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
         WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
       android.graphics.PixelFormat.TRANSLUCENT
     )
+    // Lock the reminder to portrait, even if the foreground app is landscape.
+    params.screenOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+
+    // Swallow the back button so it can't dismiss the reminder.
+    scrim.isFocusableInTouchMode = true
+    scrim.setOnKeyListener { _, keyCode, event ->
+      keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP
+    }
 
     try {
       wm.addView(scrim, params)
+      scrim.requestFocus()
       root = scrim
       showing = true
     } catch (e: Exception) {
