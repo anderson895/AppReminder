@@ -97,7 +97,7 @@ export default function Register() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>create your account</Text>
+          <Text style={styles.title}>Create Your Account</Text>
           <Text style={styles.subtitle}>
             we need an account so your bet-free progress and daily logs stay tied to
             you.
@@ -158,16 +158,16 @@ export default function Register() {
           )}
 
           <PrimaryButton
-            label={busy ? 'creating…' : 'create account'}
+            label={busy ? 'Creating…' : 'Create Account'}
             onPress={onSubmit}
             disabled={busy || !agreed}
             style={styles.cta}
           />
 
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>already have one? </Text>
+            <Text style={styles.footerText}>Already have one? </Text>
             <Link href="/login" style={styles.link}>
-              log in
+              Log in
             </Link>
           </View>
         </ScrollView>
@@ -190,7 +190,7 @@ export default function Register() {
               textColor={colors.textMuted}
               onPress={() => setTermsVisible(false)}
             >
-              close
+              Close
             </Button>
             <Button
               textColor={colors.teal}
@@ -199,7 +199,7 @@ export default function Register() {
                 setTermsVisible(false);
               }}
             >
-              I agree
+              I Agree
             </Button>
           </Dialog.Actions>
         </Dialog>

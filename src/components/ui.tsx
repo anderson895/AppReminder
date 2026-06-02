@@ -189,6 +189,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     color: colors.onTeal,
     fontWeight: '700',
     textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false, // remove Android's extra space below the text
   },
   outline: {
     borderWidth: 1.5,
@@ -203,6 +205,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     color: colors.text,
     fontWeight: '700',
     textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false, // remove Android's extra space below the text
   },
   tile: {
     flex: 1,

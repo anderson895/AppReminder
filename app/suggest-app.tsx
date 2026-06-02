@@ -141,7 +141,7 @@ export default function SuggestApp() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <IconButton icon="arrow-left" size={22} iconColor={colors.text} onPress={() => router.back()} />
-        <Text style={styles.title}>suggest an app</Text>
+        <Text style={styles.title}>Suggest an App</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -152,7 +152,7 @@ export default function SuggestApp() {
           before it's added to the blocked list for everyone.
         </Text>
 
-        <Text style={styles.fieldLabel}>category</Text>
+        <Text style={styles.fieldLabel}>Category</Text>
         <SegmentedButtons
           value={category}
           onValueChange={(v) => setCategory(v as Category)}
@@ -179,15 +179,15 @@ export default function SuggestApp() {
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         <PrimaryButton
-          label="submit suggestion"
+          label="Submit Suggestion"
           onPress={submit}
           style={{ marginTop: spacing(1.5) }}
         />
 
-        <Text style={styles.pickLabel}>pick an installed app</Text>
+        <Text style={styles.pickLabel}>Pick an Installed App</Text>
         <TextInput
           mode="outlined"
-          label="search apps"
+          label="Search apps"
           value={search}
           onChangeText={setSearch}
           autoCapitalize="none"
@@ -229,7 +229,7 @@ export default function SuggestApp() {
 
           {mine.length > 0 && (
             <>
-              <Text style={styles.section}>your suggestions</Text>
+              <Text style={styles.section}>Your Suggestions</Text>
               {mine.map((s) => {
                 const meta = STATUS_META[s.status];
                 return (

@@ -90,7 +90,7 @@ export default function SetupMotivation() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>your reason to pause</Text>
+          <Text style={styles.title}>Your Reason to Pause</Text>
           <Text style={styles.subtitle}>
             Add one or more photos and a message from someone you love. A random
             photo shows on the reminder before a gambling or e-wallet app opens — so
@@ -120,7 +120,7 @@ export default function SetupMotivation() {
                 accessibilityRole="button"
               >
                 <MaterialCommunityIcons name="image-plus" size={32} color={colors.teal} />
-                <Text style={styles.addHint}>add photo</Text>
+                <Text style={styles.addHint}>Add Photo</Text>
               </Pressable>
             )}
           </View>
@@ -138,7 +138,7 @@ export default function SetupMotivation() {
           />
           <TextInput
             {...inputProps}
-            label="their message to you"
+            label="Their message to you"
             value={message}
             onChangeText={setMessage}
             multiline
@@ -146,13 +146,13 @@ export default function SetupMotivation() {
           />
 
           <PrimaryButton
-            label={busy ? 'saving…' : 'save & continue'}
+            label={busy ? 'Saving…' : 'Save & Continue'}
             onPress={save}
             disabled={busy}
             style={{ marginTop: spacing(2.5) }}
           />
           <OutlineButton
-            label="skip for now"
+            label="Skip for Now"
             onPress={() => router.replace('/dashboard')}
             style={{ marginTop: spacing(1.5) }}
           />

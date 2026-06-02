@@ -74,12 +74,12 @@ export default function Journal() {
           iconColor={colors.text}
           onPress={() => router.back()}
         />
-        <Text style={styles.title}>activity logs</Text>
+        <Text style={styles.title}>Activity Logs</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.section}>daily logs</Text>
+        <Text style={styles.section}>Daily Logs</Text>
         {logs.length === 0 && (
           <Text style={styles.empty}>
             No activity yet. Your daily logs will appear here once detection is
@@ -126,7 +126,7 @@ export default function Journal() {
         ))}
 
         <Text style={[styles.section, { marginTop: spacing(3) }]}>
-          apps opened
+          Apps Opened
         </Text>
         <Text style={styles.empty}>
           Every app you open is logged here — even ones not on the monitored list.

@@ -119,17 +119,17 @@ export default function Admin() {
         <View style={styles.tileRow}>
           <StatTile
             value={stats ? stats.totalUsers : 0}
-            label="users"
+            label="Users"
             style={{ marginRight: spacing(0.75) }}
           />
           <StatTile
             value={stats ? stats.triggerAppCount : 0}
-            label="trigger apps"
+            label="Trigger Apps"
             style={{ marginHorizontal: spacing(0.75) }}
           />
           <StatTile
             value={stats ? stats.totalGamblingAttempts : 0}
-            label="gambling hits"
+            label="Gambling Hits"
             style={{ marginLeft: spacing(0.75) }}
           />
         </View>
@@ -138,7 +138,7 @@ export default function Admin() {
         {pending.length > 0 && (
           <>
             <Text style={[styles.section, { marginTop: spacing(2) }]}>
-              pending suggestions ({pending.length})
+              Pending Suggestions ({pending.length})
             </Text>
             {pending.map((s) => (
               <View key={s.id} style={styles.suggestRow}>
@@ -176,8 +176,8 @@ export default function Admin() {
         )}
 
         <View style={styles.sectionRow}>
-          <Text style={styles.section}>trigger apps</Text>
-          <PrimaryButton label="+ add app" onPress={openAdd} style={styles.addBtn} />
+          <Text style={styles.section}>Trigger Apps</Text>
+          <PrimaryButton label="+ Add App" onPress={openAdd} style={styles.addBtn} />
         </View>
         <Text style={styles.hint}>
           This master list applies to every user. Toggle to enable/disable, tap a row to
@@ -245,10 +245,10 @@ export default function Admin() {
           </Dialog.Content>
           <Dialog.Actions>
             <Button textColor={colors.textMuted} onPress={() => setToDelete(null)}>
-              cancel
+              Cancel
             </Button>
             <Button textColor={colors.danger} onPress={onConfirmDelete}>
-              remove
+              Remove
             </Button>
           </Dialog.Actions>
         </Dialog>

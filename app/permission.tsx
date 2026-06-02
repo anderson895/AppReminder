@@ -84,18 +84,18 @@ export default function Permission() {
           <View style={styles.iconCircle}>
             <MaterialCommunityIcons name="shield-account" size={44} color={colors.onTeal} />
           </View>
-          <Text style={styles.title}>enable app monitoring</Text>
+          <Text style={styles.title}>Enable App Monitoring</Text>
           <Text style={styles.subtitle}>
             Real background detection runs only in the installed BettrMind app. In this
             preview the permission step is recorded so the flow is complete.
           </Text>
           <PrimaryButton
-            label="allow & continue"
+            label="Allow & Continue"
             onPress={finish}
             disabled={busy}
             style={{ marginTop: spacing(3) }}
           />
-          <OutlineButton label="not now" onPress={skip} style={{ marginTop: spacing(1.5) }} />
+          <OutlineButton label="Not Now" onPress={skip} style={{ marginTop: spacing(1.5) }} />
         </ScrollView>
       </SafeAreaView>
     );
@@ -107,7 +107,7 @@ export default function Permission() {
         <View style={styles.iconCircle}>
           <MaterialCommunityIcons name="shield-account" size={44} color={colors.onTeal} />
         </View>
-        <Text style={styles.title}>enable app monitoring</Text>
+        <Text style={styles.title}>Enable App Monitoring</Text>
         <Text style={styles.subtitle}>
           BettrMind needs these so it can notice when you open a gambling or financial
           app and remind you before you continue.
@@ -137,12 +137,12 @@ export default function Permission() {
         </View>
 
         <PrimaryButton
-          label={busy ? 'enabling…' : usageOk ? 'enable & continue' : 'grant Usage access first'}
+          label={busy ? 'Enabling…' : usageOk ? 'Enable & Continue' : 'Grant Usage Access First'}
           onPress={finish}
           disabled={busy || !usageOk}
           style={{ marginTop: spacing(3) }}
         />
-        <OutlineButton label="not now" onPress={skip} style={{ marginTop: spacing(1.5) }} />
+        <OutlineButton label="Not Now" onPress={skip} style={{ marginTop: spacing(1.5) }} />
         <Text style={styles.footNote}>
           Reminders won't trigger until at least Usage access is granted.
         </Text>
@@ -185,7 +185,7 @@ function PermRow({
           android_ripple={{ color: 'rgba(47,227,168,0.25)', borderless: false }}
           style={styles.grantBtn}
         >
-          <Text style={styles.grantBtnText}>grant</Text>
+          <Text style={styles.grantBtnText}>Grant</Text>
         </Pressable>
       )}
     </View>

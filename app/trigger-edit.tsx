@@ -156,7 +156,7 @@ export default function TriggerEdit() {
           onPress={() => router.back()}
         />
         <Text style={styles.title}>
-          {editingId ? 'edit trigger app' : 'add trigger app'}
+          {editingId ? 'Edit Trigger App' : 'Add Trigger App'}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -168,16 +168,16 @@ export default function TriggerEdit() {
         {/* Fixed form — kept OUT of the FlatList so toggling category never
             re-renders the list. */}
         <View style={styles.form}>
-          <TextInput {...inputProps} label="app name" value={name} onChangeText={setName} />
+          <TextInput {...inputProps} label="App name" value={name} onChangeText={setName} />
           <TextInput
             {...inputProps}
-            label="package name"
+            label="Package name"
             value={pkg}
             onChangeText={setPkg}
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <Text style={styles.fieldLabel}>category</Text>
+          <Text style={styles.fieldLabel}>Category</Text>
           <SegmentedButtons
             value={category}
             onValueChange={(v) => setCategory(v as Category)}
@@ -189,15 +189,15 @@ export default function TriggerEdit() {
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <PrimaryButton
-            label={editingId ? 'save' : 'add app'}
+            label={editingId ? 'Save' : 'Add App'}
             onPress={onSave}
             style={{ marginTop: spacing(1.5) }}
           />
 
-          <Text style={styles.pickLabel}>or pick an installed app</Text>
+          <Text style={styles.pickLabel}>Or Pick an Installed App</Text>
           <TextInput
             {...inputProps}
-            label="search apps"
+            label="Search apps"
             value={search}
             onChangeText={setSearch}
             autoCapitalize="none"

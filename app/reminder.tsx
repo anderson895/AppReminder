@@ -66,7 +66,7 @@ export default function Reminder() {
       </View>
 
       <View style={styles.body}>
-        <Text style={styles.heading}>before you continue…</Text>
+        <Text style={styles.heading}>Before You Continue…</Text>
         <Text style={styles.context}>
           you're opening <Text style={styles.appName}>{appName}</Text>
         </Text>
@@ -78,14 +78,14 @@ export default function Reminder() {
           ) : (
             <>
               <MaterialCommunityIcons name="account-group" size={56} color={colors.teal} />
-              <Text style={styles.photoLabel}>your motivation photo</Text>
+              <Text style={styles.photoLabel}>Your motivation photo</Text>
             </>
           )}
         </View>
 
         {/* Message card */}
         <View style={styles.messageCard}>
-          <Text style={styles.from}>from {member}</Text>
+          <Text style={styles.from}>From {member}</Text>
           <Text style={styles.message}>&ldquo;{message}&rdquo;</Text>
         </View>
 

@@ -85,7 +85,7 @@ export default function Countdown() {
       <View style={styles.body}>
         {!done ? (
           <>
-            <Text style={styles.heading}>take a breath</Text>
+            <Text style={styles.heading}>Take a Breath</Text>
             <Text style={styles.sub}>
               {appName} will be available in a moment. Use this pause to be sure.
             </Text>
@@ -98,7 +98,7 @@ export default function Countdown() {
             </View>
 
             <OutlineButton
-              label="actually, I changed my mind"
+              label="Actually, I Changed My Mind"
               onPress={onChangedMind}
               style={{ alignSelf: 'stretch', marginTop: spacing(4) }}
             />
@@ -108,7 +108,7 @@ export default function Countdown() {
             <View style={styles.grantedIcon}>
               <MaterialCommunityIcons name="check" size={48} color={colors.onTeal} />
             </View>
-            <Text style={styles.heading}>access granted</Text>
+            <Text style={styles.heading}>Access Granted</Text>
             <Text style={styles.sub}>
               {category === 'gambling'
                 ? 'This attempt was logged under today’s activity. Spend mindfully.'
@@ -116,12 +116,12 @@ export default function Countdown() {
             </Text>
 
             <PrimaryButton
-              label={`continue to ${appName}`}
+              label={`Continue to ${appName}`}
               onPress={() => router.replace('/dashboard')}
               style={{ alignSelf: 'stretch', marginTop: spacing(4) }}
             />
             <OutlineButton
-              label="back to BettrMind"
+              label="Back to BettrMind"
               onPress={() => router.replace('/dashboard')}
               style={{ alignSelf: 'stretch', marginTop: spacing(1.5) }}
             />

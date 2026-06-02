@@ -73,10 +73,10 @@ export default function Login() {
               resizeMode="contain"
             />
             <Text style={styles.brand}>BettrMind</Text>
-            <Text style={styles.tagline}>pause. think. choose better.</Text>
+            <Text style={styles.tagline}>Pause. Think. Choose better.</Text>
           </View>
 
-          <Text style={styles.title}>welcome back</Text>
+          <Text style={styles.title}>Welcome Back</Text>
 
           <TextInput
             mode="outlined"
@@ -116,21 +116,21 @@ export default function Login() {
           )}
 
           <PrimaryButton
-            label={busy ? 'signing in…' : 'log in'}
+            label={busy ? 'Signing in…' : 'Log In'}
             onPress={onSubmit}
             disabled={busy}
             style={styles.cta}
           />
 
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>new here? </Text>
+            <Text style={styles.footerText}>New here? </Text>
             <Link href="/register" style={styles.link}>
-              create an account
+              Create an account
             </Link>
           </View>
 
           <Text style={styles.adminHint}>
-            admin? log in with your admin credentials above
+            Admin? Log in with your admin credentials above.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -145,26 +145,26 @@ export default function Dashboard() {
 
         {/* Bet-free streak hero */}
         <View style={styles.heroCard}>
-          <Text style={styles.heroLabel}>days bet-free</Text>
+          <Text style={styles.heroLabel}>Days Bet-Free</Text>
           <Text style={styles.heroNumber}>{stats ? stats.streakDays : '—'}</Text>
-          <Text style={styles.heroSub}>keep going</Text>
+          <Text style={styles.heroSub}>Keep Going</Text>
 
           {/* Stat tiles */}
           <View style={styles.tileRow}>
             <StatTile
               value={stats ? stats.urgesBlocked : 0}
-              label="urges blocked"
+              label="Urges Blocked"
               style={{ marginRight: spacing(1) }}
             />
             <StatTile
               value={stats ? `${stats.longestStreakWeeks} wks` : '0 wks'}
-              label="best streak"
+              label="Best Streak"
               style={{ marginLeft: spacing(1) }}
             />
           </View>
 
           <OutlineButton
-            label="view activity logs"
+            label="View Activity Logs"
             onPress={() => router.push('/journal')}
             style={{ marginTop: spacing(2.5), alignSelf: 'stretch' }}
           />
@@ -178,11 +178,11 @@ export default function Dashboard() {
           accessibilityRole="button"
         >
           <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.teal} />
-          <Text style={styles.suggestText}>suggest an app to block</Text>
+          <Text style={styles.suggestText}>Suggest an App to Block</Text>
           <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
         </Pressable>
 
-        <Text style={styles.greeting}>stay strong, {firstName}.</Text>
+        <Text style={styles.greeting}>Stay strong, {firstName}.</Text>
       </ScrollView>
     </SafeAreaView>
   );

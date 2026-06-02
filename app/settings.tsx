@@ -84,7 +84,7 @@ export default function Settings() {
           iconColor={colors.text}
           onPress={() => router.back()}
         />
-        <Text style={styles.title}>settings</Text>
+        <Text style={styles.title}>Settings</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -105,7 +105,7 @@ export default function Settings() {
           </View>
         </View>
 
-        <Text style={styles.section}>appearance</Text>
+        <Text style={styles.section}>Appearance</Text>
         <Text style={styles.help}>Pick the color theme for the app.</Text>
         <View style={styles.stepRow}>
           {THEMES.map((t) => (
@@ -119,26 +119,26 @@ export default function Settings() {
           ))}
         </View>
 
-        <Text style={styles.section}>reminder message</Text>
+        <Text style={styles.section}>Reminder Message</Text>
         <Text style={styles.help}>
           Shown on the friction pop-up before a monitored app opens.
         </Text>
         <TextInput
           {...inputProps}
-          label="from (e.g. mama)"
+          label="From (e.g. Mama)"
           value={member}
           onChangeText={setMember}
         />
         <TextInput
           {...inputProps}
-          label="their message to you"
+          label="Their message to you"
           value={message}
           onChangeText={setMessage}
           multiline
           numberOfLines={4}
         />
 
-        <Text style={styles.section}>pause length</Text>
+        <Text style={styles.section}>Pause Length</Text>
         <Text style={styles.help}>How long you wait before access is granted.</Text>
         <View style={styles.stepRow}>
           {STEPS.map((s) => (
@@ -153,12 +153,12 @@ export default function Settings() {
         </View>
 
         <PrimaryButton
-          label="save changes"
+          label="Save Changes"
           onPress={onSave}
           style={{ marginTop: spacing(2.5) }}
         />
         <OutlineButton
-          label="log out"
+          label="Log Out"
           onPress={onLogout}
           style={{ marginTop: spacing(1.5) }}
         />
