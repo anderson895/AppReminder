@@ -137,7 +137,7 @@ class AppMonitorService : Service() {
       val seconds = Prefs.getReminderSeconds(this)
       overlay.show(appName, pkg, member, message, seconds) { action ->
         if (action == "muted") {
-          Prefs.addMuted(this, pkg)
+          Prefs.addMuted(this, pkg, appName)
           Prefs.addPending(this, pkg, appName, category, true, "opened")
         } else {
           Prefs.addPending(this, pkg, appName, category, true, action)

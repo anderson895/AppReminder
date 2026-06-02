@@ -117,16 +117,62 @@ object Prefs {
     }
   }
 
-  /* ---- "don't show again" muted packages ---- */
+  /* ---- "don't show again" muted packages ----
+   * Stored as a JSON object { packageName: appName } so the Settings screen can
+   * list muted apps by name and let the user un-mute them. A legacy StringSet
+   * ("muted") from earlier builds is still honoured for read/remove. */
 
-  fun addMuted(ctx: Context, pkg: String) {
-    val set = HashSet(p(ctx).getStringSet("muted", HashSet()) ?: HashSet())
-    set.add(pkg)
-    p(ctx).edit().putStringSet("muted", set).apply()
+  private fun mutedMap(ctx: Context): JSONObject = try {
+    JSONObject(p(ctx).getString("mutedMap", "{}") ?: "{}")
+  } catch (e: Exception) {
+    JSONObject()
+  }
+
+  fun addMuted(ctx: Context, pkg: String, appName: String) {
+    val map = mutedMap(ctx)
+    map.put(pkg, appName)
+    p(ctx).edit().putString("mutedMap", map.toString()).apply()
+  }
+
+  fun removeMuted(ctx: Context, pkg: String) {
+    val map = mutedMap(ctx)
+    map.remove(pkg)
+    // also drop it from the legacy StringSet, if present
+    val legacy = HashSet(p(ctx).getStringSet("muted", HashSet()) ?: HashSet())
+    val hadLegacy = legacy.remove(pkg)
+    val editor = p(ctx).edit().putString("mutedMap", map.toString())
+    if (hadLegacy) editor.putStringSet("muted", legacy)
+    editor.apply()
   }
 
   fun isMuted(ctx: Context, pkg: String): Boolean {
+    if (mutedMap(ctx).has(pkg)) return true
     val set = p(ctx).getStringSet("muted", HashSet()) ?: HashSet()
     return set.contains(pkg)
+  }
+
+  /** All muted apps as JSON array [{packageName, appName}]. */
+  fun getMutedJson(ctx: Context): String {
+    val map = mutedMap(ctx)
+    val arr = JSONArray()
+    val keys = map.keys()
+    while (keys.hasNext()) {
+      val k = keys.next()
+      val o = JSONObject()
+      o.put("packageName", k)
+      o.put("appName", map.optString(k, k))
+      arr.put(o)
+    }
+    // include any legacy entries not already represented in the map
+    val set = p(ctx).getStringSet("muted", HashSet()) ?: HashSet()
+    for (pkg in set) {
+      if (!map.has(pkg)) {
+        val o = JSONObject()
+        o.put("packageName", pkg)
+        o.put("appName", pkg)
+        arr.put(o)
+      }
+    }
+    return arr.toString()
   }
 }

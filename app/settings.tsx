@@ -12,6 +12,12 @@ import { parsePhotos, serializePhotos } from '../src/photos';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getSettings, updateSettings, clearUserLogs } from '../src/db/database';
+import {
+  detectionAvailable,
+  getMutedApps,
+  unmuteApp,
+  type MutedApp,
+} from '../src/native/detector';
 
 const THEMES: ReadonlyArray<{ mode: ThemeMode; label: string }> = [
   { mode: 'navy', label: 'Navy' },
@@ -38,6 +44,7 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [toast, setToast] = useState('');
+  const [muted, setMuted] = useState<MutedApp[]>([]);
 
   useEffect(() => {
     if (user)
@@ -47,9 +54,16 @@ export default function Settings() {
         setPhotos(parsePhotos(s.motivation_photo));
         setCountdown(s.countdown_seconds);
       });
+    if (detectionAvailable) setMuted(getMutedApps());
   }, [user]);
 
   if (!user) return <Redirect href="/login" />;
+
+  const onUnmute = (app: MutedApp): void => {
+    unmuteApp(app.packageName);
+    setMuted(getMutedApps());
+    setToast(`${app.appName} reminders re-enabled.`);
+  };
 
   const addPhotos = async (): Promise<void> => {
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -203,6 +217,46 @@ export default function Settings() {
             </Text>
           ))}
         </View>
+
+        {detectionAvailable && (
+          <>
+            <Text style={styles.section}>Muted Apps</Text>
+            <Text style={styles.help}>
+              Apps you silenced with "Don't show again". Re-enable to bring back their
+              reminder pop-up.
+            </Text>
+            {muted.length === 0 ? (
+              <Text style={styles.mutedEmpty}>No muted apps.</Text>
+            ) : (
+              <View style={styles.mutedCard}>
+                {muted.map((app, i) => (
+                  <View
+                    key={app.packageName}
+                    style={[styles.mutedRow, i > 0 && styles.mutedDivider]}
+                  >
+                    <View style={styles.mutedInfo}>
+                      <Text style={styles.mutedName} numberOfLines={1}>
+                        {app.appName}
+                      </Text>
+                      <Text style={styles.mutedPkg} numberOfLines={1}>
+                        {app.packageName}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={styles.unmuteBtn}
+                      onPress={() => onUnmute(app)}
+                      android_ripple={{ color: 'rgba(255,255,255,0.08)', borderless: false }}
+                      accessibilityRole="button"
+                    >
+                      <MaterialCommunityIcons name="bell-ring-outline" size={16} color={colors.teal} />
+                      <Text style={styles.unmuteText}>Re-enable</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
 
         <PrimaryButton
           label="Save Changes"
@@ -360,6 +414,41 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     gap: spacing(0.25),
   },
   addHint: { color: colors.textMuted, fontSize: 10 },
+  mutedEmpty: { color: colors.textMuted, fontSize: 13, marginTop: spacing(0.5) },
+  mutedCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    marginTop: spacing(0.5),
+    overflow: 'hidden',
+  },
+  mutedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing(1.5),
+    gap: spacing(1),
+  },
+  mutedDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.outline },
+  mutedInfo: { flex: 1 },
+  mutedName: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  mutedPkg: { color: colors.textMuted, fontSize: 12, marginTop: 1 },
+  unmuteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.5),
+    borderWidth: 1.5,
+    borderColor: colors.teal,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing(1.25),
+    paddingVertical: spacing(0.75),
+    overflow: 'hidden',
+  },
+  unmuteText: {
+    color: colors.teal,
+    fontWeight: '700',
+    fontSize: 13,
+    includeFontPadding: false,
+  },
   stepRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing(1) },
   chip: {
     color: colors.textMuted,
