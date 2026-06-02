@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
+import { parsePhotos } from '../src/photos';
 import { OutlineButton, StatTile } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import {
@@ -71,7 +72,8 @@ export default function Dashboard() {
       configureReminder(
         settings.family_member,
         settings.family_message,
-        settings.countdown_seconds
+        settings.countdown_seconds,
+        parsePhotos(settings.motivation_photo)
       );
 
       const trigger = consumeLaunchTrigger();

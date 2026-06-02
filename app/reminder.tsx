@@ -6,6 +6,7 @@ import { useRouter, useLocalSearchParams, Redirect } from 'expo-router';
 
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
+import { parsePhotos, randomPhoto } from '../src/photos';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getSettings, recordEvent } from '../src/db/database';
@@ -37,6 +38,11 @@ export default function Reminder() {
   const message =
     settings?.family_message ||
     'Anak, we believe in you. Every day you choose us over gambling, you give us our future back.';
+  // Pick a random motivation photo once, when settings load.
+  const photo = useMemo(
+    () => randomPhoto(parsePhotos(settings?.motivation_photo)),
+    [settings?.motivation_photo]
+  );
 
   const onResist = async (): Promise<void> => {
     if (busy) return;
@@ -67,12 +73,8 @@ export default function Reminder() {
 
         {/* Motivation photo card — the user's uploaded photo, or a placeholder */}
         <View style={styles.photoCard}>
-          {settings?.motivation_photo ? (
-            <Image
-              source={{ uri: settings.motivation_photo }}
-              style={styles.photo}
-              resizeMode="cover"
-            />
+          {photo ? (
+            <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
           ) : (
             <>
               <MaterialCommunityIcons name="account-group" size={56} color={colors.teal} />

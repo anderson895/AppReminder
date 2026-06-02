@@ -82,11 +82,18 @@ object Prefs {
 
   /* ---- reminder overlay configuration (from the user's settings) ---- */
 
-  fun setReminderConfig(ctx: Context, member: String, message: String, seconds: Int) {
+  fun setReminderConfig(
+    ctx: Context,
+    member: String,
+    message: String,
+    seconds: Int,
+    photosJson: String
+  ) {
     p(ctx).edit()
       .putString("reminderMember", member)
       .putString("reminderMessage", message)
       .putInt("reminderSeconds", seconds)
+      .putString("reminderPhotos", photosJson)
       .apply()
   }
 
@@ -98,6 +105,17 @@ object Prefs {
       ?: "We believe in you. Choose us over gambling."
 
   fun getReminderSeconds(ctx: Context): Int = p(ctx).getInt("reminderSeconds", 900)
+
+  /** A random motivation photo uri from the configured list, or "" if none. */
+  fun getRandomPhoto(ctx: Context): String {
+    val json = p(ctx).getString("reminderPhotos", "[]") ?: "[]"
+    return try {
+      val arr = JSONArray(json)
+      if (arr.length() == 0) "" else arr.getString((Math.random() * arr.length()).toInt())
+    } catch (e: Exception) {
+      ""
+    }
+  }
 
   /* ---- "don't show again" muted packages ---- */
 

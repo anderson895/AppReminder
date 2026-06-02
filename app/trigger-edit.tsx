@@ -15,7 +15,8 @@ import { TextInput, IconButton, SegmentedButtons } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, Redirect } from 'expo-router';
 
-import { colors, radius, spacing } from '../src/theme';
+import { radius, spacing, type Palette } from '../src/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { PrimaryButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { addTriggerApp, updateTriggerApp } from '../src/db/database';
@@ -30,6 +31,12 @@ function first(v: string | string[] | undefined): string {
   return Array.isArray(v) ? (v[0] ?? '') : (v ?? '');
 }
 
+/** Memoized, theme-aware styles shared by AppRow + the screen. */
+function useStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => makeStyles(colors), [colors]);
+}
+
 // Memoized row so toggling the category (or other state) never re-renders or
 // blanks out the installed-apps list.
 const AppRow = React.memo(function AppRow({
@@ -41,6 +48,8 @@ const AppRow = React.memo(function AppRow({
   selected: boolean;
   onPick: (a: InstalledApp) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   return (
     // collapsable={false} stops Android's New Architecture (Fabric) from
     // flattening/optimizing these row views away on a sibling commit, which was
@@ -67,6 +76,8 @@ const AppRow = React.memo(function AppRow({
 
 export default function TriggerEdit() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useStyles();
   const { admin } = useAuth();
   const params = useLocalSearchParams<{
     id?: string;
@@ -230,7 +241,7 @@ export default function TriggerEdit() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

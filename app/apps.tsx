@@ -1,11 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconButton, TextInput, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
-import { colors, radius, spacing } from '../src/theme';
+import { radius, spacing, type Palette } from '../src/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getEnabledTriggerApps, recordAppOpen } from '../src/db/database';
@@ -29,6 +30,8 @@ const ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
 
 export default function Apps() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
   const [apps, setApps] = useState<TriggerApp[]>([]);
   const [otherApp, setOtherApp] = useState('');
@@ -171,7 +174,7 @@ export default function Apps() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',

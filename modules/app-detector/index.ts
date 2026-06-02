@@ -28,9 +28,10 @@ export function startMonitoring(appsJson: string): void {
 export function configureReminder(
   member: string,
   message: string,
-  seconds: number
+  seconds: number,
+  photosJson: string
 ): void {
-  nativeModule?.configureReminder(member, message, seconds);
+  nativeModule?.configureReminder(member, message, seconds, photosJson);
 }
 
 export function stopMonitoring(): void {

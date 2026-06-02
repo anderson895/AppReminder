@@ -2,8 +2,11 @@ package expo.modules.appdetector
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.CountDownTimer
 import android.os.Handler
@@ -15,6 +18,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -96,6 +100,22 @@ class OverlayManager(private val ctx: Context) {
     ctxLine.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
     ctxLine.setPadding(0, dp(4), 0, dp(16))
     card.addView(ctxLine)
+
+    // Random motivation photo (if the user added any)
+    val photoBmp = loadBitmap(Prefs.getRandomPhoto(ctx))
+    if (photoBmp != null) {
+      val img = ImageView(ctx)
+      img.setImageBitmap(photoBmp)
+      img.scaleType = ImageView.ScaleType.CENTER_CROP
+      img.clipToOutline = true
+      img.background = rounded(cTealDark, dp(16))
+      val imgLp = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        dp(150)
+      )
+      imgLp.bottomMargin = dp(12)
+      card.addView(img, imgLp)
+    }
 
     // Message box
     val msgBox = LinearLayout(ctx)
@@ -269,6 +289,33 @@ class OverlayManager(private val ctx: Context) {
     g.cornerRadius = radius.toFloat()
     g.setColor(color)
     return g
+  }
+
+  /** Decode a (downsampled) bitmap from a file:// or content:// uri, or null. */
+  private fun loadBitmap(uri: String): Bitmap? {
+    if (uri.isBlank()) return null
+    return try {
+      val openStream: () -> java.io.InputStream? = {
+        if (uri.startsWith("content://")) {
+          ctx.contentResolver.openInputStream(Uri.parse(uri))
+        } else {
+          val path = if (uri.startsWith("file://")) Uri.parse(uri).path else uri
+          if (path != null) java.io.FileInputStream(path) else null
+        }
+      }
+      // First pass: read bounds to compute a sample size.
+      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      openStream()?.use { BitmapFactory.decodeStream(it, null, bounds) }
+      var sample = 1
+      val maxDim = 1080
+      while (bounds.outWidth / sample > maxDim || bounds.outHeight / sample > maxDim) {
+        sample *= 2
+      }
+      val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+      openStream()?.use { BitmapFactory.decodeStream(it, null, opts) }
+    } catch (e: Exception) {
+      null
+    }
   }
 
   private fun lp(matchW: Boolean, topMargin: Int): LinearLayout.LayoutParams {

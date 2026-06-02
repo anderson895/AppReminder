@@ -40,13 +40,17 @@ export function startMonitoring(apps: TriggerApp[]): void {
   Native.startMonitoring(JSON.stringify(list));
 }
 
-/** Tell the native overlay what message + countdown to show. */
+/**
+ * Tell the native overlay what message + countdown + motivation photos to show.
+ * The native side picks one photo at random each time the reminder appears.
+ */
 export function configureReminder(
   member: string,
   message: string,
-  seconds: number
+  seconds: number,
+  photos: string[] = []
 ): void {
-  Native.configureReminder(member, message, seconds);
+  Native.configureReminder(member, message, seconds, JSON.stringify(photos));
 }
 
 /** Read the buffer of app-opens the service recorded while we weren't looking. */

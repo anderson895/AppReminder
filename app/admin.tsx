@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -12,7 +12,8 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
-import { colors, radius, spacing } from '../src/theme';
+import { radius, spacing, type Palette } from '../src/theme';
+import { useTheme } from '../src/context/ThemeContext';
 import { PrimaryButton, StatTile } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import {
@@ -20,15 +21,21 @@ import {
   deleteTriggerApp,
   toggleTriggerApp,
   getAdminStats,
+  getPendingSuggestions,
+  approveSuggestion,
+  rejectSuggestion,
 } from '../src/db/database';
-import type { TriggerApp, AdminStats } from '../src/types';
+import type { TriggerApp, AdminStats, SuggestionWithUser } from '../src/types';
 
 export default function Admin() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { admin, logout } = useAuth();
 
   const [apps, setApps] = useState<TriggerApp[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [pending, setPending] = useState<SuggestionWithUser[]>([]);
 
   // Delete confirm + toast
   const [toDelete, setToDelete] = useState<TriggerApp | null>(null);
@@ -37,6 +44,7 @@ export default function Admin() {
   const load = useCallback(() => {
     getTriggerApps().then(setApps);
     getAdminStats().then(setStats);
+    getPendingSuggestions().then(setPending);
   }, []);
 
   useFocusEffect(
@@ -71,6 +79,18 @@ export default function Admin() {
 
   const onToggle = async (app: TriggerApp) => {
     await toggleTriggerApp(app.id, !app.enabled);
+    load();
+  };
+
+  const onApprove = async (s: SuggestionWithUser) => {
+    await approveSuggestion(s.id);
+    setToast(`Added ${s.app_name} to the blocked list.`);
+    load();
+  };
+
+  const onReject = async (s: SuggestionWithUser) => {
+    await rejectSuggestion(s.id);
+    setToast('Suggestion rejected.');
     load();
   };
 
@@ -113,6 +133,47 @@ export default function Admin() {
             style={{ marginLeft: spacing(0.75) }}
           />
         </View>
+
+        {/* Pending user suggestions awaiting review */}
+        {pending.length > 0 && (
+          <>
+            <Text style={[styles.section, { marginTop: spacing(2) }]}>
+              pending suggestions ({pending.length})
+            </Text>
+            {pending.map((s) => (
+              <View key={s.id} style={styles.suggestRow}>
+                <View
+                  style={[
+                    styles.dot,
+                    {
+                      backgroundColor:
+                        s.category === 'gambling' ? colors.danger : colors.teal,
+                    },
+                  ]}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.appName}>{s.app_name}</Text>
+                  <Text style={styles.appCat}>
+                    {s.category}
+                    {s.package_name ? ` · ${s.package_name}` : ''} · by {s.user_name}
+                  </Text>
+                </View>
+                <IconButton
+                  icon="check-circle"
+                  size={24}
+                  iconColor={colors.success}
+                  onPress={() => onApprove(s)}
+                />
+                <IconButton
+                  icon="close-circle"
+                  size={24}
+                  iconColor={colors.danger}
+                  onPress={() => onReject(s)}
+                />
+              </View>
+            ))}
+          </>
+        )}
 
         <View style={styles.sectionRow}>
           <Text style={styles.section}>trigger apps</Text>
@@ -205,7 +266,7 @@ export default function Admin() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
@@ -241,6 +302,14 @@ const styles = StyleSheet.create({
   },
   empty: { color: colors.textMuted, fontSize: 13, marginTop: spacing(1) },
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingLeft: spacing(2),
+    marginBottom: spacing(1),
+  },
+  suggestRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,

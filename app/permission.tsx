@@ -6,6 +6,7 @@ import { useRouter, Redirect } from 'expo-router';
 
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
+import { parsePhotos } from '../src/photos';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import {
@@ -63,7 +64,12 @@ export default function Permission() {
       const apps = await getEnabledTriggerApps();
       startMonitoring(apps);
       const s = await getSettings(user.id);
-      configureReminder(s.family_member, s.family_message, s.countdown_seconds);
+      configureReminder(
+        s.family_member,
+        s.family_message,
+        s.countdown_seconds,
+        parsePhotos(s.motivation_photo)
+      );
     }
     router.replace('/setup-motivation');
   };

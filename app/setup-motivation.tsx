@@ -20,6 +20,7 @@ import { useTheme } from '../src/context/ThemeContext';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getSettings, updateSettings } from '../src/db/database';
+import { parsePhotos, serializePhotos } from '../src/photos';
 
 export default function SetupMotivation() {
   const router = useRouter();
@@ -27,7 +28,7 @@ export default function SetupMotivation() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
 
-  const [photo, setPhoto] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [member, setMember] = useState('');
   const [message, setMessage] = useState('');
   const [countdown, setCountdown] = useState(15 * 60);
@@ -36,7 +37,7 @@ export default function SetupMotivation() {
   useEffect(() => {
     if (user)
       getSettings(user.id).then((s) => {
-        setPhoto(s.motivation_photo);
+        setPhotos(parsePhotos(s.motivation_photo));
         setMember(s.family_member);
         setMessage(s.family_message);
         setCountdown(s.countdown_seconds);
@@ -45,15 +46,22 @@ export default function SetupMotivation() {
 
   if (!user) return <Redirect href="/login" />;
 
-  const pickPhoto = async (): Promise<void> => {
+  const addPhotos = async (): Promise<void> => {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsMultipleSelection: true,
+      selectionLimit: 6,
       quality: 0.7,
     });
-    if (!res.canceled && res.assets[0]) setPhoto(res.assets[0].uri);
+    if (!res.canceled) {
+      const picked = res.assets.map((a) => a.uri);
+      // De-dupe and cap at 6 total.
+      setPhotos((prev) => Array.from(new Set([...prev, ...picked])).slice(0, 6));
+    }
   };
+
+  const removePhoto = (uri: string) =>
+    setPhotos((prev) => prev.filter((u) => u !== uri));
 
   const save = async (): Promise<void> => {
     if (busy) return;
@@ -62,7 +70,7 @@ export default function SetupMotivation() {
       family_member: member.trim() || 'mama',
       family_message: message.trim(),
       countdown_seconds: countdown,
-      motivation_photo: photo,
+      motivation_photo: serializePhotos(photos),
     });
     router.replace('/dashboard');
   };
@@ -84,34 +92,41 @@ export default function SetupMotivation() {
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>your reason to pause</Text>
           <Text style={styles.subtitle}>
-            Add a photo and a message from someone you love. We'll show it on the
-            reminder before a gambling or e-wallet app opens — so you remember what
-            matters.
+            Add one or more photos and a message from someone you love. A random
+            photo shows on the reminder before a gambling or e-wallet app opens — so
+            you remember what matters.
           </Text>
 
-          {/* Photo picker */}
-          <Pressable
-            style={styles.photoCard}
-            onPress={pickPhoto}
-            android_ripple={{ color: 'rgba(255,255,255,0.08)', borderless: false }}
-            accessibilityRole="button"
-          >
-            {photo ? (
-              <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
-            ) : (
-              <View style={styles.photoEmpty}>
-                <MaterialCommunityIcons
-                  name="image-plus"
-                  size={44}
-                  color={colors.teal}
-                />
-                <Text style={styles.photoHint}>tap to choose a photo</Text>
+          {/* Photo grid */}
+          <View style={styles.grid}>
+            {photos.map((uri) => (
+              <View key={uri} style={styles.thumbWrap}>
+                <Image source={{ uri }} style={styles.thumb} resizeMode="cover" />
+                <Pressable
+                  style={styles.removeBtn}
+                  onPress={() => removePhoto(uri)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                >
+                  <MaterialCommunityIcons name="close" size={14} color="#FFFFFF" />
+                </Pressable>
               </View>
+            ))}
+            {photos.length < 6 && (
+              <Pressable
+                style={styles.addTile}
+                onPress={addPhotos}
+                android_ripple={{ color: 'rgba(255,255,255,0.08)', borderless: false }}
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons name="image-plus" size={32} color={colors.teal} />
+                <Text style={styles.addHint}>add photo</Text>
+              </Pressable>
             )}
-          </Pressable>
-          {!!photo && (
-            <Text style={styles.changePhoto} onPress={pickPhoto}>
-              change photo
+          </View>
+          {photos.length > 0 && (
+            <Text style={styles.countHint}>
+              {photos.length} photo{photos.length > 1 ? 's' : ''} · one shows at random
             </Text>
           )}
 
@@ -159,26 +174,33 @@ const makeStyles = (colors: Palette) =>
       marginTop: spacing(1),
       marginBottom: spacing(2.5),
     },
-    photoCard: {
-      height: 190,
-      borderRadius: radius.lg,
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing(1.5) },
+    thumbWrap: { width: 96, height: 96 },
+    thumb: { width: 96, height: 96, borderRadius: radius.md },
+    removeBtn: {
+      position: 'absolute',
+      top: -6,
+      right: -6,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: colors.danger,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addTile: {
+      width: 96,
+      height: 96,
+      borderRadius: radius.md,
       backgroundColor: colors.surface,
       borderWidth: 1.5,
       borderColor: colors.outline,
       borderStyle: 'dashed',
       alignItems: 'center',
       justifyContent: 'center',
-      overflow: 'hidden',
+      gap: spacing(0.5),
     },
-    photo: { width: '100%', height: '100%' },
-    photoEmpty: { alignItems: 'center', gap: spacing(1) },
-    photoHint: { color: colors.textMuted, fontSize: 13 },
-    changePhoto: {
-      color: colors.teal,
-      fontSize: 13,
-      fontWeight: '700',
-      textAlign: 'center',
-      marginTop: spacing(1),
-    },
+    addHint: { color: colors.textMuted, fontSize: 11 },
+    countHint: { color: colors.textFaint, fontSize: 12, marginTop: spacing(1) },
     input: { backgroundColor: colors.surface, marginTop: spacing(1.5) },
   });

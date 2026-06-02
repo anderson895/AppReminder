@@ -1,5 +1,6 @@
 during set up: option to choose upload photo/photos from their galleries?
-message that would be on pop up? 
+message that would be on pop up?
+pwedeng multiple tapos random n lng ung sa pop up
 
 
 ** for the monitored apps - can we not have this shown pero from their end but they can suggest and submit to us?

@@ -48,8 +48,8 @@ class AppDetectorModule : Module() {
       }
     }
 
-    Function("configureReminder") { member: String, message: String, seconds: Int ->
-      Prefs.setReminderConfig(context, member, message, seconds)
+    Function("configureReminder") { member: String, message: String, seconds: Int, photosJson: String ->
+      Prefs.setReminderConfig(context, member, message, seconds, photosJson)
     }
 
     Function("stopMonitoring") {
