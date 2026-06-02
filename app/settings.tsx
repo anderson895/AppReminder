@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextInput, IconButton, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, Redirect } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 
 import { radius, spacing, type Palette, type ThemeMode } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
+import { parsePhotos, serializePhotos } from '../src/photos';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getSettings, updateSettings, clearUserLogs } from '../src/db/database';
@@ -31,6 +33,7 @@ export default function Settings() {
   const { user, logout } = useAuth();
   const [member, setMember] = useState('');
   const [message, setMessage] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [countdown, setCountdown] = useState(15 * 60);
   const [saved, setSaved] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -41,17 +44,35 @@ export default function Settings() {
       getSettings(user.id).then((s) => {
         setMember(s.family_member);
         setMessage(s.family_message);
+        setPhotos(parsePhotos(s.motivation_photo));
         setCountdown(s.countdown_seconds);
       });
   }, [user]);
 
   if (!user) return <Redirect href="/login" />;
 
+  const addPhotos = async (): Promise<void> => {
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: 6,
+      quality: 0.7,
+    });
+    if (!res.canceled) {
+      const picked = res.assets.map((a) => a.uri);
+      setPhotos((prev) => Array.from(new Set([...prev, ...picked])).slice(0, 6));
+    }
+  };
+
+  const removePhoto = (uri: string) =>
+    setPhotos((prev) => prev.filter((u) => u !== uri));
+
   const onSave = async (): Promise<void> => {
     await updateSettings(user.id, {
       family_member: member.trim() || 'mama',
       family_message: message.trim(),
       countdown_seconds: countdown,
+      motivation_photo: serializePhotos(photos),
     });
     setSaved(true);
   };
@@ -137,6 +158,37 @@ export default function Settings() {
           multiline
           numberOfLines={4}
         />
+
+        <Text style={styles.section}>Motivation Photos</Text>
+        <Text style={styles.help}>
+          One of these shows at random on the pop-up. Add up to 6.
+        </Text>
+        <View style={styles.grid}>
+          {photos.map((uri) => (
+            <View key={uri} style={styles.thumbWrap}>
+              <Image source={{ uri }} style={styles.thumb} resizeMode="cover" />
+              <Pressable
+                style={styles.removeBtn}
+                onPress={() => removePhoto(uri)}
+                hitSlop={8}
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons name="close" size={14} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          ))}
+          {photos.length < 6 && (
+            <Pressable
+              style={styles.addTile}
+              onPress={addPhotos}
+              android_ripple={{ color: 'rgba(255,255,255,0.08)', borderless: false }}
+              accessibilityRole="button"
+            >
+              <MaterialCommunityIcons name="image-plus" size={28} color={colors.teal} />
+              <Text style={styles.addHint}>Add Photo</Text>
+            </Pressable>
+          )}
+        </View>
 
         <Text style={styles.section}>Pause Length</Text>
         <Text style={styles.help}>How long you wait before access is granted.</Text>
@@ -281,6 +333,33 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginBottom: spacing(1),
   },
   input: { backgroundColor: colors.surface, marginBottom: spacing(1) },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing(1.5), marginTop: spacing(0.5) },
+  thumbWrap: { width: 84, height: 84 },
+  thumb: { width: 84, height: 84, borderRadius: radius.md },
+  removeBtn: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addTile: {
+    width: 84,
+    height: 84,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.outline,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing(0.25),
+  },
+  addHint: { color: colors.textMuted, fontSize: 10 },
   stepRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing(1) },
   chip: {
     color: colors.textMuted,
