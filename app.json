@@ -21,7 +21,8 @@
       },
       "runtimeVersion": {
         "policy": "appVersion"
-      }
+      },
+      "permissions": []
     },
     "ios": {
       "supportsTablet": true,
@@ -49,13 +50,10 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "8900216c-b044-49a1-bc0e-5ce4cd709870"
+        "projectId": "d3d934e2-03c4-433b-af76-17c55e9e80f9"
       }
     },
-    "owner": "padillajoshuaanderson.pdm",
-    "updates": {
-      "url": "https://u.expo.dev/8900216c-b044-49a1-bc0e-5ce4cd709870"
-    },
+    "owner": "masterparj",
     "runtimeVersion": {
       "policy": "appVersion"
     }
