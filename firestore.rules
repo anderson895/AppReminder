@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The app reads this kill-switch flag. Writes are denied to everyone —
+    // only the developer can change it from the Firebase console.
+    match /config/app {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

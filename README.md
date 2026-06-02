@@ -74,15 +74,57 @@ src/
   components/ui.tsx  # PrimaryButton, OutlineButton, StatTile, BrandHeader
 ```
 
-## Note on real-world app detection
+## Real app detection (native)
 
-Truly detecting when **other** apps are launched on Android requires native Android APIs
-(`UsageStatsManager` or an `AccessibilityService`) that run outside the standard Expo Go /
-managed workflow. To keep the project runnable end-to-end, detection is exercised in-app:
+Detection runs for real via a local Expo native module (`modules/app-detector`, Kotlin):
+a foreground `Service` polls `UsageStatsManager` to learn which app is in the foreground,
+and a system overlay (`SYSTEM_ALERT_WINDOW`) draws the reminder + countdown on top of the
+opened app (locked to portrait). This requires a **dev/standalone build** (not Expo Go) and
+the user must grant **Usage access** + **Display over other apps**.
 
-- the dashboard's **open e-wallet** button, and
-- the **test** buttons on the *monitored apps* screen
+---
 
-simulate the system detecting an app launch and trigger the full reminder → countdown →
-logging flow. The background native monitor can be added later via an Expo **dev build** /
-config plugin without changing the rest of the app.
+## Firebase remote kill-switch (developer)
+
+The app ships **offline** (all user data is local SQLite), but checks one Firebase flag on
+launch/resume so the developer can **remotely disable** the app (e.g. if the client does not
+pay). This is already configured for project **`bettrmind-ba10a`**.
+
+**How it works**
+
+- On launch and on app-resume the app does a plain `fetch` to the **Firestore REST API** for
+  the document **`config/app`** and reads `{ enabled: bool, message: string }`
+  (`src/remoteGate.ts`).
+- If `enabled === false`, the whole app shows a **lock screen** and native monitoring stops.
+- The status is cached (AsyncStorage). A device that has **never reached Firebase defaults to
+  enabled** (offline first-run works); once it has seen `disabled` it **stays locked even
+  offline**. Network/missing-doc failures never lock the app.
+- No Firebase SDK is used — REST + `fetch` only, so it stays light and OTA-compatible.
+
+**What is already set up** (in this project)
+
+- Firestore `(default)` database with document `config/app` → `enabled: true`,
+  `message: "This application has been disabled. Please contact the developer to restore access."`
+- Security rules (`firestore.rules`, deployed): the flag is **publicly readable** but
+  **write-denied** — only the developer can change it. Config lives in `firebase.json` /
+  `.firebaserc`.
+
+**To LOCK or UNLOCK the app**
+
+1. Open the [Firebase console](https://console.firebase.google.com/project/bettrmind-ba10a/firestore)
+   → **Firestore Database** → `config` → `app`.
+2. Set **`enabled`** to **`false`** to lock (optionally edit `message`), or **`true`** to
+   unlock.
+3. The change applies the next time the client's app is opened **with internet** (and then
+   persists offline).
+
+**Re-deploying the rules** (only if changed):
+
+```bash
+firebase deploy --only firestore:rules --project bettrmind-ba10a
+```
+
+> **Deliverable note:** the kill-switch must be in the **embedded JS bundle** of the APK you
+> hand over, so build the final APK with `eas build -p android --profile preview` (an OTA
+> update only patches already-installed copies). The embedded `apiKey` is a public Firebase
+> web key — safe to ship; it cannot change the flag because writes are denied by rules.
