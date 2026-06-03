@@ -30,9 +30,11 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     val block = TriggerHandler.evaluate(this, pkg) ?: return
 
     // Pull the user out of the trigger app (also un-hides our priming overlay),
-    // then show the full-screen blocker once the transition has settled.
+    // then show the full-screen blocker once the Home transition has settled.
+    // The delay matters: launching too early races the Home animation, which can
+    // then reassert the launcher on top of (and dismiss) the blocker.
     performGlobalAction(GLOBAL_ACTION_HOME)
-    handler.postDelayed({ launchBlocker(block) }, 300)
+    handler.postDelayed({ launchBlocker(block) }, 600)
   }
 
   private fun launchBlocker(block: TriggerHandler.Block) {

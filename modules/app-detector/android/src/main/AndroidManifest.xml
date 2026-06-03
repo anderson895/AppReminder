@@ -48,7 +48,6 @@
       android:excludeFromRecents="true"
       android:launchMode="singleTask"
       android:taskAffinity="expo.modules.appdetector.blocker"
-      android:noHistory="true"
       android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|uiMode"
       android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
   </application>
