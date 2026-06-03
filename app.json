@@ -22,7 +22,10 @@
       "runtimeVersion": {
         "policy": "appVersion"
       },
-      "permissions": []
+      "permissions": [],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "ios": {
       "supportsTablet": true,
