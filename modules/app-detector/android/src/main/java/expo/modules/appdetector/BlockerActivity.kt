@@ -67,8 +67,9 @@ class BlockerActivity : Activity() {
         reopenApp()
       }
       "muted" -> {
+        // The open was already logged by AppMonitorService before this activity
+        // launched, so we don't log it again here — just mute and continue.
         Prefs.addMuted(this, pkg, appName)
-        Prefs.addPending(this, pkg, appName, category, true, "opened")
         reopenApp()
       }
     }

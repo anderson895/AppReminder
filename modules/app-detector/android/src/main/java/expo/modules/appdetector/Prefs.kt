@@ -12,7 +12,13 @@ object Prefs {
   private const val NAME = "bettrmind_app_detector"
   private const val MAX_PENDING = 300
 
-  private fun p(ctx: Context) = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+  // MODE_MULTI_PROCESS forces a reload from disk on each open, so writes made in
+  // one component (e.g. the React UI un-muting an app) are seen by another (the
+  // monitor service deciding whether to show the reminder), and vice-versa.
+  // Without it, a process's cached SharedPreferences can miss the other's edits.
+  @Suppress("DEPRECATION")
+  private fun p(ctx: Context) =
+    ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE or Context.MODE_MULTI_PROCESS)
 
   fun setTriggers(ctx: Context, json: String) {
     p(ctx).edit().putString("triggers", json).apply()

@@ -142,7 +142,13 @@ class AppMonitorService : Service() {
     }
     lastEventTime = now
 
-    if (latest != null && latest != lastPackage && latest != packageName) {
+    if (latest == packageName) {
+      // The user is inside BettrMind itself (e.g. un-muting an app in Settings).
+      // Forget the last package so the very next trigger-app open is always
+      // re-evaluated — otherwise returning straight to a just-used app (e.g.
+      // un-mute Maya, then reopen Maya) would be deduped and skip the reminder.
+      lastPackage = null
+    } else if (latest != null && latest != lastPackage) {
       lastPackage = latest
       onAppOpened(latest!!)
     }
@@ -182,6 +188,14 @@ class AppMonitorService : Service() {
       Prefs.addPending(this, pkg, appName, category, true, "opened")
       return
     }
+
+    // Log the open now, in the service, so it ALWAYS appears in the activity
+    // feed — independent of whether the blocker UI manages to show. (Previously
+    // the open was only logged inside BlockerActivity, so if the activity launch
+    // was blocked — e.g. by Background Activity Launch restrictions — the open
+    // vanished from the logs while non-trigger opens still showed.) The reminder
+    // outcome ('resisted'/'proceeded') is logged separately by BlockerActivity.
+    Prefs.addPending(this, pkg, appName, category, true, "opened")
 
     // Trigger app: launch the full-screen blocker activity over it. Starting an
     // activity from the background is permitted here because the app holds the

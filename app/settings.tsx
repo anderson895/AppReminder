@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, Image, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TextInput, IconButton, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter, Redirect } from 'expo-router';
+import { useRouter, Redirect, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
 import { radius, spacing, type Palette, type ThemeMode } from '../src/theme';
@@ -54,8 +54,16 @@ export default function Settings() {
         setPhotos(parsePhotos(s.motivation_photo));
         setCountdown(s.countdown_seconds);
       });
-    if (detectionAvailable) setMuted(getMutedApps());
   }, [user]);
+
+  // Reload the muted list every time the screen regains focus (not just on
+  // mount) so a "don't show again" made on the pop-up — written by the native
+  // service — shows up here, and an un-mute reflects immediately.
+  useFocusEffect(
+    useCallback(() => {
+      if (detectionAvailable) setMuted(getMutedApps());
+    }, [])
+  );
 
   if (!user) return <Redirect href="/login" />;
 
