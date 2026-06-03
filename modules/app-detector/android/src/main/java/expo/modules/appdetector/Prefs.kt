@@ -157,6 +157,28 @@ object Prefs {
     return set.contains(pkg)
   }
 
+  /* ---- temporary "you may proceed" grace ----
+   * After the user waits out the countdown and chooses to continue, we let them
+   * use that app for a while without re-blocking. Stored as { packageName:
+   * untilEpochMillis }. This also stops a re-block loop: the accessibility
+   * blocker sends the user Home then reopens the app, which would otherwise be
+   * detected as a fresh open and re-trigger immediately. */
+
+  private fun graceMap(ctx: Context): JSONObject = try {
+    JSONObject(p(ctx).getString("graceMap", "{}") ?: "{}")
+  } catch (e: Exception) {
+    JSONObject()
+  }
+
+  fun setProceedGrace(ctx: Context, pkg: String, untilMillis: Long) {
+    val map = graceMap(ctx)
+    map.put(pkg, untilMillis)
+    p(ctx).edit().putString("graceMap", map.toString()).apply()
+  }
+
+  fun isWithinGrace(ctx: Context, pkg: String): Boolean =
+    graceMap(ctx).optLong(pkg, 0L) > System.currentTimeMillis()
+
   /** All muted apps as JSON array [{packageName, appName}]. */
   fun getMutedJson(ctx: Context): String {
     val map = mutedMap(ctx)

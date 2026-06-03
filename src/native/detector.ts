@@ -20,6 +20,16 @@ export function openOverlaySettings(): void {
   Native.openOverlaySettings();
 }
 
+/** Whether the BettrMind accessibility service is enabled (needed to block apps
+ *  that hide overlays, e.g. GCash/Maya). */
+export function isAccessibilityEnabled(): boolean {
+  return Native.isAccessibilityEnabled();
+}
+
+export function openAccessibilitySettings(): void {
+  Native.openAccessibilitySettings();
+}
+
 export function isMonitoring(): boolean {
   return Native.isMonitoring();
 }

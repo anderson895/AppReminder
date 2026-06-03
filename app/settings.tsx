@@ -16,6 +16,8 @@ import {
   detectionAvailable,
   getMutedApps,
   unmuteApp,
+  isAccessibilityEnabled,
+  openAccessibilitySettings,
   type MutedApp,
 } from '../src/native/detector';
 
@@ -45,6 +47,7 @@ export default function Settings() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [toast, setToast] = useState('');
   const [muted, setMuted] = useState<MutedApp[]>([]);
+  const [a11yOn, setA11yOn] = useState(false);
 
   useEffect(() => {
     if (user)
@@ -61,7 +64,10 @@ export default function Settings() {
   // service — shows up here, and an un-mute reflects immediately.
   useFocusEffect(
     useCallback(() => {
-      if (detectionAvailable) setMuted(getMutedApps());
+      if (detectionAvailable) {
+        setMuted(getMutedApps());
+        setA11yOn(isAccessibilityEnabled());
+      }
     }, [])
   );
 
@@ -228,6 +234,35 @@ export default function Settings() {
 
         {detectionAvailable && (
           <>
+            <Text style={styles.section}>Strong Blocking</Text>
+            <Text style={styles.help}>
+              Some apps (GCash, Maya, banks) can hide the normal pop-up. Turn on
+              BettrMind's Accessibility service so the reminder still shows for them.
+            </Text>
+            <Pressable
+              style={styles.a11yRow}
+              onPress={() => openAccessibilitySettings()}
+              android_ripple={{ color: 'rgba(255,255,255,0.08)', borderless: false }}
+              accessibilityRole="button"
+            >
+              <MaterialCommunityIcons
+                name={a11yOn ? 'shield-check' : 'shield-alert-outline'}
+                size={20}
+                color={a11yOn ? colors.teal : colors.textMuted}
+              />
+              <View style={styles.mutedInfo}>
+                <Text style={styles.mutedName}>
+                  Accessibility {a11yOn ? 'enabled' : 'disabled'}
+                </Text>
+                <Text style={styles.mutedPkg} numberOfLines={1}>
+                  {a11yOn ? 'GCash, Maya & banks are covered' : 'Tap to open settings and enable'}
+                </Text>
+              </View>
+              {!a11yOn && (
+                <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
+              )}
+            </Pressable>
+
             <Text style={styles.section}>Muted Apps</Text>
             <Text style={styles.help}>
               Apps you silenced with "Don't show again". Re-enable to bring back their
@@ -423,6 +458,16 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   addHint: { color: colors.textMuted, fontSize: 10 },
   mutedEmpty: { color: colors.textMuted, fontSize: 13, marginTop: spacing(0.5) },
+  a11yRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1),
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing(1.5),
+    marginTop: spacing(0.5),
+    overflow: 'hidden',
+  },
   mutedCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,

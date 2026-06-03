@@ -18,8 +18,6 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import org.json.JSONArray
-import org.json.JSONObject
 
 /**
  * Foreground service that polls UsageStats to learn which app is in the
@@ -28,9 +26,7 @@ import org.json.JSONObject
  */
 class AppMonitorService : Service() {
   private val handler = Handler(Looper.getMainLooper())
-  private var lastPackage: String? = null
   private var lastEventTime = 0L
-  private var triggers = JSONArray()
 
   // A 1x1 invisible overlay kept alive while monitoring. Android 12+ blocks
   // background Activity launches ("BAL") even for a foreground service that
@@ -64,11 +60,6 @@ class AppMonitorService : Service() {
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     val appsJson = intent?.getStringExtra("apps") ?: Prefs.getTriggers(this)
     Prefs.setTriggers(this, appsJson)
-    triggers = try {
-      JSONArray(appsJson)
-    } catch (e: Exception) {
-      JSONArray()
-    }
 
     createChannel()
     startInForeground()
@@ -129,6 +120,12 @@ class AppMonitorService : Service() {
   }
 
   private fun checkForeground() {
+    // When the accessibility service is enabled it is the authority for
+    // detection + launching (instant, and it can handle overlay-hiding apps like
+    // GCash). Skip the poll so the two sources don't race — a poll "win" on a
+    // GCash open would fail (BAL-blocked) yet still consume the debounce.
+    if (accessibilityEnabled()) return
+
     val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return
     val now = System.currentTimeMillis()
     val events = usm.queryEvents(lastEventTime, now)
@@ -142,92 +139,39 @@ class AppMonitorService : Service() {
     }
     lastEventTime = now
 
-    if (latest == packageName) {
-      // The user is inside BettrMind itself (e.g. un-muting an app in Settings).
-      // Forget the last package so the very next trigger-app open is always
-      // re-evaluated — otherwise returning straight to a just-used app (e.g.
-      // un-mute Maya, then reopen Maya) would be deduped and skip the reminder.
-      lastPackage = null
-    } else if (latest != null && latest != lastPackage) {
-      lastPackage = latest
-      onAppOpened(latest!!)
-    }
+    val pkg = latest ?: return
+    TriggerHandler.evaluate(this, pkg)?.let { launchBlocker(it) }
   }
 
-  private fun onAppOpened(pkg: String) {
-    val lower = pkg.lowercase()
-    if (lower.contains("launcher") ||
-      pkg == "com.android.systemui" ||
-      lower.contains("inputmethod")
-    ) {
-      return
-    }
-
-    var match: JSONObject? = null
-    for (i in 0 until triggers.length()) {
-      val t = triggers.optJSONObject(i) ?: continue
-      val tp = t.optString("packageName")
-      if (tp.isNotEmpty() && tp == pkg) {
-        match = t
-        break
-      }
-    }
-
-    val appName = match?.optString("appName") ?: getAppLabel(pkg) ?: pkg
-    val category = match?.optString("category") ?: "other"
-    val isTrigger = match != null
-
-    if (!isTrigger) {
-      // Non-trigger app: just log the open.
-      Prefs.addPending(this, pkg, appName, category, false, "opened")
-      return
-    }
-
-    // "Don't show again": user muted this app — log the open, no reminder.
-    if (Prefs.isMuted(this, pkg)) {
-      Prefs.addPending(this, pkg, appName, category, true, "opened")
-      return
-    }
-
-    // Log the open now, in the service, so it ALWAYS appears in the activity
-    // feed — independent of whether the blocker UI manages to show. (Previously
-    // the open was only logged inside BlockerActivity, so if the activity launch
-    // was blocked — e.g. by Background Activity Launch restrictions — the open
-    // vanished from the logs while non-trigger opens still showed.) The reminder
-    // outcome ('resisted'/'proceeded') is logged separately by BlockerActivity.
-    Prefs.addPending(this, pkg, appName, category, true, "opened")
-
-    // Trigger app: launch the full-screen blocker activity over it. Starting an
-    // activity from the background is permitted here because the app holds the
-    // SYSTEM_ALERT_WINDOW permission. An activity (vs. an overlay) can't be
-    // hidden by security-hardened apps like GCash.
-    val canOverlay = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-      Settings.canDrawOverlays(this)
-    if (canOverlay) {
-      try {
-        val intent = Intent(this, BlockerActivity::class.java)
-          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-          .putExtra("packageName", pkg)
-          .putExtra("appName", appName)
-          .putExtra("category", category)
-        startActivity(intent)
-      } catch (e: Exception) {
-        // Background activity start blocked — fall back to the in-app reminder.
-        Prefs.setLaunchTrigger(this, pkg, appName, category)
-        launchReminder()
-      }
-    } else {
-      // No overlay permission — fall back to the in-app reminder screen.
-      Prefs.setLaunchTrigger(this, pkg, appName, category)
+  /**
+   * Launch the full-screen blocker over a trigger app. The kept-alive primer
+   * overlay [balPrimer] satisfies the Background-Activity-Launch "visible window"
+   * rule so this start is permitted from the background. Apps that HIDE overlays
+   * (GCash/Maya's setHideOverlayWindows) defeat the primer; those are covered by
+   * [AppBlockerAccessibilityService], which sends the user Home first (un-hiding
+   * the primer) before launching.
+   */
+  private fun launchBlocker(block: TriggerHandler.Block) {
+    try {
+      val intent = Intent(this, BlockerActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        .putExtra("packageName", block.pkg)
+        .putExtra("appName", block.appName)
+        .putExtra("category", block.category)
+      startActivity(intent)
+    } catch (e: Exception) {
+      // Background activity start blocked — fall back to the in-app reminder.
+      Prefs.setLaunchTrigger(this, block.pkg, block.appName, block.category)
       launchReminder()
     }
   }
 
-  private fun getAppLabel(pkg: String): String? = try {
-    val pm = packageManager
-    pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-  } catch (e: Exception) {
-    null
+  private fun accessibilityEnabled(): Boolean {
+    val enabled = Settings.Secure.getString(
+      contentResolver,
+      Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: return false
+    return enabled.contains(AppBlockerAccessibilityService::class.java.name)
   }
 
   private fun launchReminder() {

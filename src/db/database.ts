@@ -163,6 +163,22 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
       // Older SQLite without DROP COLUMN support — leave it; it is harmless.
     }
   }
+
+  // Add the "user has been told this suggestion was resolved" flag if missing,
+  // so we can notify them once when the admin approves/rejects their suggestion.
+  const suggestionCols = await db.getAllAsync<{ name: string }>(
+    'PRAGMA table_info(app_suggestions)'
+  );
+  if (!suggestionCols.some((c) => c.name === 'notified')) {
+    await db.runAsync(
+      'ALTER TABLE app_suggestions ADD COLUMN notified INTEGER NOT NULL DEFAULT 0'
+    );
+    // Existing already-resolved suggestions predate this feature — treat them as
+    // already seen so we don't notify retroactively.
+    await db.runAsync(
+      "UPDATE app_suggestions SET notified = 1 WHERE status != 'pending'"
+    );
+  }
 }
 
 /** Seed the default admin account and the global trigger-app list once. */
@@ -464,6 +480,26 @@ export async function getUserSuggestions(userId: number): Promise<AppSuggestion[
   return db.getAllAsync<AppSuggestion>(
     'SELECT * FROM app_suggestions WHERE user_id = ? ORDER BY created_at DESC',
     [userId]
+  );
+}
+
+/** Resolved (approved/rejected) suggestions the user hasn't been notified of yet. */
+export async function getUnnotifiedSuggestions(userId: number): Promise<AppSuggestion[]> {
+  const db = await getDb();
+  return db.getAllAsync<AppSuggestion>(
+    "SELECT * FROM app_suggestions WHERE user_id = ? AND status != 'pending' AND notified = 0 ORDER BY created_at DESC",
+    [userId]
+  );
+}
+
+/** Mark suggestions as notified so the user isn't told about them again. */
+export async function markSuggestionsNotified(ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  const placeholders = ids.map(() => '?').join(',');
+  await db.runAsync(
+    `UPDATE app_suggestions SET notified = 1 WHERE id IN (${placeholders})`,
+    ids
   );
 }
 

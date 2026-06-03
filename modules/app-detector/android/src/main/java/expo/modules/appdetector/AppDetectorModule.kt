@@ -29,6 +29,14 @@ class AppDetectorModule : Module() {
 
     Function("hasOverlayPermission") { Settings.canDrawOverlays(context) }
 
+    Function("isAccessibilityEnabled") { isAccessibilityEnabled() }
+
+    Function("openAccessibilitySettings") {
+      val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
+    }
+
     Function("openOverlaySettings") {
       val intent = Intent(
         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -98,6 +106,14 @@ class AppDetectorModule : Module() {
       }
       arr.toString()
     }
+  }
+
+  private fun isAccessibilityEnabled(): Boolean {
+    val enabled = Settings.Secure.getString(
+      context.contentResolver,
+      Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: return false
+    return enabled.contains(AppBlockerAccessibilityService::class.java.name)
   }
 
   private fun hasUsageAccess(): Boolean {

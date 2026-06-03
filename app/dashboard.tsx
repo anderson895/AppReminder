@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconButton } from 'react-native-paper';
+import { IconButton, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
@@ -15,6 +15,8 @@ import {
   getSettings,
   getEnabledTriggerApps,
   recordEvent,
+  getUnnotifiedSuggestions,
+  markSuggestionsNotified,
 } from '../src/db/database';
 import {
   detectionAvailable,
@@ -33,6 +35,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [monitoringOn, setMonitoringOn] = useState(true);
+  const [suggestToast, setSuggestToast] = useState('');
 
   // Drain the native monitor's buffer into the activity logs, (re)start the
   // service with the latest trigger list, and surface any pending reminder.
@@ -94,6 +97,41 @@ export default function Dashboard() {
         active = false;
       };
     }, [user, syncDetection, refresh])
+  );
+
+  // Tell the user once when the admin has approved (or rejected) an app they
+  // suggested to block.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      if (user) {
+        getUnnotifiedSuggestions(user.id).then((list) => {
+          if (!active || list.length === 0) return;
+          const approved = list
+            .filter((s) => s.status === 'approved')
+            .map((s) => s.app_name);
+          const rejected = list
+            .filter((s) => s.status === 'rejected')
+            .map((s) => s.app_name);
+          const parts: string[] = [];
+          if (approved.length > 0) {
+            parts.push(
+              `${approved.join(', ')} ${approved.length > 1 ? 'are' : 'is'} now being blocked`
+            );
+          }
+          if (rejected.length > 0) {
+            parts.push(
+              `${rejected.join(', ')} ${rejected.length > 1 ? 'were' : 'was'} not added`
+            );
+          }
+          setSuggestToast(`${parts.join('. ')}.`);
+          markSuggestionsNotified(list.map((s) => s.id));
+        });
+      }
+      return () => {
+        active = false;
+      };
+    }, [user])
   );
 
   // The monitor brings us to the foreground when a trigger app opens — re-sync
@@ -184,6 +222,15 @@ export default function Dashboard() {
 
         <Text style={styles.greeting}>Stay strong, {firstName}.</Text>
       </ScrollView>
+
+      <Snackbar
+        visible={suggestToast.length > 0}
+        onDismiss={() => setSuggestToast('')}
+        duration={6000}
+        action={{ label: 'OK', onPress: () => setSuggestToast('') }}
+      >
+        {suggestToast}
+      </Snackbar>
     </SafeAreaView>
   );
 }

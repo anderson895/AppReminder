@@ -64,6 +64,10 @@ class BlockerActivity : Activity() {
       }
       "proceeded" -> {
         Prefs.addPending(this, pkg, appName, category, true, "proceeded")
+        // Grant a grace window so reopening the app doesn't immediately re-block
+        // (the accessibility path sends the user Home then reopens the app).
+        val graceMs = Prefs.getReminderSeconds(this).toLong() * 1000L
+        Prefs.setProceedGrace(this, pkg, System.currentTimeMillis() + graceMs)
         reopenApp()
       }
       "muted" -> {

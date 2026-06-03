@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="bettrmind_accessibility_description">Lets BettrMind detect when a gambling or financial app opens so it can show your reminder — even for apps that block the normal pop-up. BettrMind only reads which app is in the foreground; it does not read screen content.</string>
+</resources>
