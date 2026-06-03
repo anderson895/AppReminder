@@ -10,10 +10,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.graphics.PixelFormat
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -27,6 +31,16 @@ class AppMonitorService : Service() {
   private var lastPackage: String? = null
   private var lastEventTime = 0L
   private var triggers = JSONArray()
+
+  // A 1x1 invisible overlay kept alive while monitoring. Android 12+ blocks
+  // background Activity launches ("BAL") even for a foreground service that
+  // merely HOLDS the overlay permission — the BAL check requires an actually
+  // VISIBLE non-app window (callingUidHasNonAppVisibleWindow). Keeping this tiny
+  // overlay present satisfies that, so BlockerActivity can launch over a trigger
+  // app from the background. Invisible (1px, transparent, untouchable) so the
+  // user never sees it; not the reminder UI itself, so apps that hide overlays
+  // (GCash/Maya's setHideOverlayWindows) can't defeat the full-screen blocker.
+  private var balPrimer: View? = null
 
   companion object {
     const val CHANNEL_ID = "bettrmind_monitor"
@@ -58,6 +72,7 @@ class AppMonitorService : Service() {
 
     createChannel()
     startInForeground()
+    addBalPrimer()
     Prefs.setMonitoring(this, true)
 
     lastEventTime = System.currentTimeMillis() - 60_000L
@@ -68,8 +83,49 @@ class AppMonitorService : Service() {
 
   override fun onDestroy() {
     handler.removeCallbacks(poll)
+    removeBalPrimer()
     Prefs.setMonitoring(this, false)
     super.onDestroy()
+  }
+
+  /** Add the invisible BAL-priming overlay (see [balPrimer]). No-op if the
+   *  overlay permission isn't granted or the window is already present. */
+  private fun addBalPrimer() {
+    if (balPrimer != null) return
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) return
+    try {
+      val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+      val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+      } else {
+        @Suppress("DEPRECATION")
+        WindowManager.LayoutParams.TYPE_PHONE
+      }
+      val lp = WindowManager.LayoutParams(
+        1,
+        1,
+        type,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+          WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+        PixelFormat.TRANSLUCENT
+      )
+      lp.gravity = Gravity.TOP or Gravity.START
+      val v = View(this)
+      wm.addView(v, lp)
+      balPrimer = v
+    } catch (e: Exception) {
+      balPrimer = null
+    }
+  }
+
+  private fun removeBalPrimer() {
+    val v = balPrimer ?: return
+    try {
+      (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(v)
+    } catch (e: Exception) {
+      // already gone
+    }
+    balPrimer = null
   }
 
   private fun checkForeground() {
