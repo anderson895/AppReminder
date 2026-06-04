@@ -9,6 +9,7 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -25,6 +26,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 
 /**
@@ -133,6 +135,9 @@ class AppMonitorService : Service() {
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
         PixelFormat.TRANSLUCENT
       )
+      // Keep the pop-up upright even when the watched app is in landscape — the
+      // overlay's screenOrientation forces the screen to portrait while it shows.
+      lp.screenOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
       val view = buildReminderCard { action -> onOverlayAction(block, action) }
       wm.addView(view, lp)
       overlayView = view
@@ -188,6 +193,16 @@ class AppMonitorService : Service() {
     root.setPadding(dp(20), dp(24), dp(20), dp(24))
     root.isClickable = true // swallow taps on the scrim
 
+    // A ScrollView centers the card and lets it scroll if the screen is short
+    // (e.g. with the keyboard, or a very small device), so nothing is clipped.
+    val scroll = ScrollView(this)
+    val scrollLp = FrameLayout.LayoutParams(
+      FrameLayout.LayoutParams.MATCH_PARENT,
+      FrameLayout.LayoutParams.WRAP_CONTENT
+    )
+    scrollLp.gravity = Gravity.CENTER
+    scroll.layoutParams = scrollLp
+
     val card = LinearLayout(this)
     card.orientation = LinearLayout.VERTICAL
     val cardBg = GradientDrawable()
@@ -195,12 +210,10 @@ class AppMonitorService : Service() {
     cardBg.cornerRadius = dp(22).toFloat()
     card.background = cardBg
     card.setPadding(dp(20), dp(20), dp(20), dp(20))
-    val cardLp = FrameLayout.LayoutParams(
+    card.layoutParams = FrameLayout.LayoutParams(
       FrameLayout.LayoutParams.MATCH_PARENT,
       FrameLayout.LayoutParams.WRAP_CONTENT
     )
-    cardLp.gravity = Gravity.CENTER
-    card.layoutParams = cardLp
 
     val header = TextView(this)
     header.text = "before you continue…"
@@ -255,7 +268,8 @@ class AppMonitorService : Service() {
     proceedLp.topMargin = dp(10)
     card.addView(proceed, proceedLp)
 
-    root.addView(card)
+    scroll.addView(card)
+    root.addView(scroll)
     return root
   }
 
