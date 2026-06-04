@@ -12,24 +12,6 @@ export function openUsageAccessSettings(): void {
   Native.openUsageAccessSettings();
 }
 
-export function hasOverlayPermission(): boolean {
-  return Native.hasOverlayPermission();
-}
-
-export function openOverlaySettings(): void {
-  Native.openOverlaySettings();
-}
-
-/** Whether the BettrMind accessibility service is enabled (needed to block apps
- *  that hide overlays, e.g. GCash/Maya). */
-export function isAccessibilityEnabled(): boolean {
-  return Native.isAccessibilityEnabled();
-}
-
-export function openAccessibilitySettings(): void {
-  Native.openAccessibilitySettings();
-}
-
 export function isMonitoring(): boolean {
   return Native.isMonitoring();
 }
@@ -51,8 +33,8 @@ export function startMonitoring(apps: TriggerApp[]): void {
 }
 
 /**
- * Tell the native overlay what message + countdown + motivation photos to show.
- * The native side picks one photo at random each time the reminder appears.
+ * Tell the native side what message + countdown + motivation photos to use for
+ * the reminder. The member + message are shown in the reminder notification.
  */
 export function configureReminder(
   member: string,

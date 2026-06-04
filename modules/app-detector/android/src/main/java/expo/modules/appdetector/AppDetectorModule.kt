@@ -3,7 +3,6 @@ package expo.modules.appdetector
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
@@ -24,24 +23,6 @@ class AppDetectorModule : Module() {
     Function("openUsageAccessSettings") {
       val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      context.startActivity(intent)
-    }
-
-    Function("hasOverlayPermission") { Settings.canDrawOverlays(context) }
-
-    Function("isAccessibilityEnabled") { isAccessibilityEnabled() }
-
-    Function("openAccessibilitySettings") {
-      val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      context.startActivity(intent)
-    }
-
-    Function("openOverlaySettings") {
-      val intent = Intent(
-        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-        Uri.parse("package:" + context.packageName)
-      ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       context.startActivity(intent)
     }
 
@@ -106,14 +87,6 @@ class AppDetectorModule : Module() {
       }
       arr.toString()
     }
-  }
-
-  private fun isAccessibilityEnabled(): Boolean {
-    val enabled = Settings.Secure.getString(
-      context.contentResolver,
-      Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-    ) ?: return false
-    return enabled.contains(AppBlockerAccessibilityService::class.java.name)
   }
 
   private fun hasUsageAccess(): Boolean {

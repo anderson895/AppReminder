@@ -77,10 +77,11 @@ src/
 ## Real app detection (native)
 
 Detection runs for real via a local Expo native module (`modules/app-detector`, Kotlin):
-a foreground `Service` polls `UsageStatsManager` to learn which app is in the foreground,
-and a system overlay (`SYSTEM_ALERT_WINDOW`) draws the reminder + countdown on top of the
-opened app (locked to portrait). This requires a **dev/standalone build** (not Expo Go) and
-the user must grant **Usage access** + **Display over other apps**.
+a foreground `Service` polls `UsageStatsManager` to learn which app is in the foreground.
+When a watched app opens, BettrMind posts a **heads-up notification**; tapping it opens the
+app to the reminder/countdown screen. It never covers the screen with an overlay and never
+blocks any app. This requires a **dev/standalone build** (not Expo Go) and the user must
+grant **Usage access** + **Notifications**.
 
 > **Fully offline:** BettrMind makes no network requests. All user data lives in local
 > SQLite on the device and nothing is uploaded anywhere.

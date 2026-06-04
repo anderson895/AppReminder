@@ -6,7 +6,6 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
   <!-- We only enumerate launchable apps (ACTION_MAIN/LAUNCHER) for the trigger-app
        picker and read their labels. That's all the package visibility we need, so
@@ -29,35 +28,5 @@
         android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
         android:value="Responsible-gambling app-usage reminder" />
     </service>
-
-    <!-- Detects foreground-app changes and shows the blocker for apps that hide
-         overlays (GCash/Maya). Optional — the user enables it in Accessibility
-         settings; the UsageStats poller is the fallback when it's off. -->
-    <service
-      android:name="expo.modules.appdetector.AppBlockerAccessibilityService"
-      android:exported="false"
-      android:label="BettrMind"
-      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-      <intent-filter>
-        <action android:name="android.accessibilityservice.AccessibilityService" />
-      </intent-filter>
-      <meta-data
-        android:name="android.accessibilityservice"
-        android:resource="@xml/accessibility_service_config" />
-    </service>
-
-    <!-- Full-screen reminder shown over a trigger app. A real activity (not an
-         overlay) so security-hardened apps like GCash can't hide it. Locked to
-         portrait; excluded from recents so it can't be swiped back to. -->
-    <activity
-      android:name="expo.modules.appdetector.BlockerActivity"
-      android:enabled="true"
-      android:exported="false"
-      android:screenOrientation="portrait"
-      android:excludeFromRecents="true"
-      android:launchMode="singleTask"
-      android:taskAffinity="expo.modules.appdetector.blocker"
-      android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|smallestScreenSize|uiMode"
-      android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
   </application>
 </manifest>

@@ -86,7 +86,7 @@ object Prefs {
     p(ctx).edit().remove("launchTrigger").apply()
   }
 
-  /* ---- reminder overlay configuration (from the user's settings) ---- */
+  /* ---- reminder configuration (from the user's settings) ---- */
 
   fun setReminderConfig(
     ctx: Context,
@@ -158,11 +158,9 @@ object Prefs {
   }
 
   /* ---- temporary "you may proceed" grace ----
-   * After the user waits out the countdown and chooses to continue, we let them
-   * use that app for a while without re-blocking. Stored as { packageName:
-   * untilEpochMillis }. This also stops a re-block loop: the accessibility
-   * blocker sends the user Home then reopens the app, which would otherwise be
-   * detected as a fresh open and re-trigger immediately. */
+   * After the user waits out the countdown and chooses to continue, we can let
+   * them use that app for a while without re-reminding. Stored as { packageName:
+   * untilEpochMillis }. */
 
   private fun graceMap(ctx: Context): JSONObject = try {
     JSONObject(p(ctx).getString("graceMap", "{}") ?: "{}")

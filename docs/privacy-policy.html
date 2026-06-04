@@ -63,23 +63,15 @@
   <h2>3. Permissions we request and why</h2>
   <ul>
     <li>
-      <strong>Accessibility Service:</strong> used only to detect when a watched app
-      comes to the foreground, so the reminder can appear at the right time. The
-      service is configured so that it <strong>cannot retrieve or read the content
-      of your screen</strong>. It does not capture text, keystrokes, or app data.
+      <strong>Usage Access (PACKAGE_USAGE_STATS):</strong> used only to detect which
+      app is currently in the foreground, so a reminder can appear at the right time.
+      It does not read the content of your screen, text, keystrokes, or app data.
     </li>
     <li>
-      <strong>Usage Access (PACKAGE_USAGE_STATS):</strong> a fallback method to
-      detect which app is currently in the foreground. Used only for the same
-      reminder purpose.
-    </li>
-    <li>
-      <strong>Display over other apps (SYSTEM_ALERT_WINDOW):</strong> used to show
-      the full-screen reminder over a watched app.
-    </li>
-    <li>
-      <strong>Notifications &amp; Foreground Service:</strong> used to keep the
-      reminder feature running reliably and to inform you it is active.
+      <strong>Notifications &amp; Foreground Service:</strong> the reminder is shown
+      as a notification when you open a watched app; the foreground service keeps the
+      detection running reliably and tells you it is active. BettrMind never covers
+      your screen and never blocks any app.
     </li>
     <li>
       <strong>Photos (optional):</strong> only if you choose to pick a motivating

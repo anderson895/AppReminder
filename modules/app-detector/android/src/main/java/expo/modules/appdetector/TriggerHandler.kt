@@ -7,11 +7,10 @@ import org.json.JSONObject
 /**
  * Shared logic that turns a "this package came to the foreground" signal into a
  * decision: log the open, and — for an un-muted trigger app that isn't within
- * its post-continue grace — tell the caller to show the blocker.
+ * its post-continue grace — tell the caller to show the reminder.
  *
- * Used by BOTH the UsageStats poller ([AppMonitorService]) and the
- * [AppBlockerAccessibilityService]. Its dedupe state is process-global (object
- * singleton) so the two detection sources never double-fire for the same open.
+ * Used by the UsageStats poller ([AppMonitorService]). Its dedupe state is a
+ * process-global object singleton so the same open never double-fires.
  */
 object TriggerHandler {
   private const val DEBOUNCE_MS = 1500L
@@ -83,8 +82,8 @@ object TriggerHandler {
       return null
     }
 
-    // Log the open now so it always shows in the feed even if the blocker launch
-    // is blocked. The outcome (resisted/proceeded) is logged by BlockerActivity.
+    // Log the open now so it always shows in the feed. The outcome
+    // (resisted/proceeded) is logged later from the in-app reminder screen.
     Prefs.addPending(ctx, pkg, appName, category, true, "opened")
     return Block(pkg, appName, category)
   }

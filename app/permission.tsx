@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, AppState, Pressable } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  AppState,
+  Pressable,
+  Platform,
+  PermissionsAndroid,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, Redirect } from 'expo-router';
@@ -18,8 +27,6 @@ import {
   detectionAvailable,
   hasUsageAccess,
   openUsageAccessSettings,
-  hasOverlayPermission,
-  openOverlaySettings,
   startMonitoring,
   configureReminder,
 } from '../src/native/detector';
@@ -36,15 +43,37 @@ export default function Permission() {
   const styles = useStyles();
   const { user } = useAuth();
   const [usageOk, setUsageOk] = useState(false);
-  const [overlayOk, setOverlayOk] = useState(false);
+  const [notifOk, setNotifOk] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const checkNotif = useCallback(async () => {
+    // POST_NOTIFICATIONS is a runtime permission only on Android 13+ (API 33);
+    // older versions grant it implicitly.
+    if (Platform.OS !== 'android' || (Platform.Version as number) < 33) {
+      setNotifOk(true);
+      return;
+    }
+    const ok = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+    );
+    setNotifOk(ok);
+  }, []);
+
+  const requestNotif = useCallback(async () => {
+    if (Platform.OS === 'android' && (Platform.Version as number) >= 33) {
+      await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+      );
+    }
+    checkNotif();
+  }, [checkNotif]);
 
   const refresh = useCallback(() => {
     if (detectionAvailable) {
       setUsageOk(hasUsageAccess());
-      setOverlayOk(hasOverlayPermission());
+      checkNotif();
     }
-  }, []);
+  }, [checkNotif]);
 
   useEffect(() => {
     refresh();
@@ -121,11 +150,11 @@ export default function Permission() {
           onPress={openUsageAccessSettings}
         />
         <PermRow
-          icon="application-outline"
-          title="Display over other apps"
-          desc="Show the reminder on top of the opened app."
-          granted={overlayOk}
-          onPress={openOverlaySettings}
+          icon="bell-outline"
+          title="Notifications"
+          desc="Send a gentle reminder when you open a watched app."
+          granted={notifOk}
+          onPress={requestNotif}
         />
 
         <View style={styles.notice}>

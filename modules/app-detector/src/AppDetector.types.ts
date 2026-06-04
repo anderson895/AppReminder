@@ -1,10 +1,6 @@
 export interface AppDetectorNativeModule {
   hasUsageAccess(): boolean;
   openUsageAccessSettings(): void;
-  hasOverlayPermission(): boolean;
-  openOverlaySettings(): void;
-  isAccessibilityEnabled(): boolean;
-  openAccessibilitySettings(): void;
   startMonitoring(appsJson: string): void;
   configureReminder(
     member: string,
