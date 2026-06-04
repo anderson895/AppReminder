@@ -13,6 +13,7 @@ import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -22,6 +23,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -131,7 +133,7 @@ class AppMonitorService : Service() {
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
         PixelFormat.TRANSLUCENT
       )
-      val view = buildReminderCard(block) { action -> onOverlayAction(block, action) }
+      val view = buildReminderCard { action -> onOverlayAction(block, action) }
       wm.addView(view, lp)
       overlayView = view
       handler.removeCallbacks(dismissOverlay)
@@ -169,24 +171,30 @@ class AppMonitorService : Service() {
 
   private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
-  /** Build the reminder card: dim scrim + centered card with title, message and
-   *  two buttons. Tapping a button fires [onAction] with "resisted"/"proceeded". */
-  private fun buildReminderCard(
-    block: TriggerHandler.Block,
-    onAction: (String) -> Unit
-  ): View {
+  // Pop-up palette (matches referenceUis/popup_reminder.png — teal "friction" card).
+  private val cardBgColor = 0xFF173A33.toInt()
+  private val photoBgColor = 0xFF2C7A6B.toInt()
+  private val accentColor = 0xFF1E9E86.toInt()
+  private val accentLight = 0xFFBFEDE0.toInt()
+  private val whiteColor = 0xFFFFFFFF.toInt()
+
+  /** Build the reminder card matching the reference UI: header, family-photo
+   *  box, "from <member>", the message, and two stacked buttons. Tapping fires
+   *  [onAction] with "resisted" ("I don't need to open this") or "proceeded"
+   *  ("I have a real reason — continue"). */
+  private fun buildReminderCard(onAction: (String) -> Unit): View {
     val root = FrameLayout(this)
-    root.setBackgroundColor(0xCC0A0E1A.toInt())
-    root.setPadding(dp(24), dp(24), dp(24), dp(24))
+    root.setBackgroundColor(0xCC0A0E12.toInt())
+    root.setPadding(dp(20), dp(24), dp(20), dp(24))
     root.isClickable = true // swallow taps on the scrim
 
     val card = LinearLayout(this)
     card.orientation = LinearLayout.VERTICAL
     val cardBg = GradientDrawable()
-    cardBg.setColor(0xFF141A2E.toInt())
-    cardBg.cornerRadius = dp(20).toFloat()
+    cardBg.setColor(cardBgColor)
+    cardBg.cornerRadius = dp(22).toFloat()
     card.background = cardBg
-    card.setPadding(dp(22), dp(22), dp(22), dp(18))
+    card.setPadding(dp(20), dp(20), dp(20), dp(20))
     val cardLp = FrameLayout.LayoutParams(
       FrameLayout.LayoutParams.MATCH_PARENT,
       FrameLayout.LayoutParams.WRAP_CONTENT
@@ -194,48 +202,124 @@ class AppMonitorService : Service() {
     cardLp.gravity = Gravity.CENTER
     card.layoutParams = cardLp
 
-    val title = TextView(this)
-    title.text = "You opened ${block.appName}"
-    title.setTextColor(0xFFFFFFFF.toInt())
-    title.textSize = 18f
-    title.setTypeface(title.typeface, Typeface.BOLD)
-    card.addView(title)
+    val header = TextView(this)
+    header.text = "before you continue…"
+    header.setTextColor(whiteColor)
+    header.textSize = 16f
+    header.setTypeface(header.typeface, Typeface.BOLD)
+    card.addView(header)
+
+    card.addView(buildPhotoBox())
 
     val member = Prefs.getReminderMember(this)
-    val message = Prefs.getReminderMessage(this)
+    val from = TextView(this)
+    from.text = if (member.isNotBlank()) "from $member" else "a message for you"
+    from.setTextColor(accentLight)
+    from.textSize = 13f
+    val fromLp = LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT,
+      LinearLayout.LayoutParams.WRAP_CONTENT
+    )
+    fromLp.topMargin = dp(16)
+    from.layoutParams = fromLp
+    card.addView(from)
+
     val msg = TextView(this)
-    msg.text = if (member.isNotBlank()) "$message\n— $member" else message
-    msg.setTextColor(0xFFB7C0D8.toInt())
-    msg.textSize = 15f
+    msg.text = Prefs.getReminderMessage(this)
+    msg.setTextColor(whiteColor)
+    msg.textSize = 16f
+    msg.setTypeface(msg.typeface, Typeface.BOLD)
     val msgLp = LinearLayout.LayoutParams(
       LinearLayout.LayoutParams.MATCH_PARENT,
       LinearLayout.LayoutParams.WRAP_CONTENT
     )
-    msgLp.topMargin = dp(12)
+    msgLp.topMargin = dp(6)
     msg.layoutParams = msgLp
     card.addView(msg)
 
-    val row = LinearLayout(this)
-    row.orientation = LinearLayout.HORIZONTAL
-    val rowLp = LinearLayout.LayoutParams(
+    val stop = makeButton("I don't need to open this", filled = true) { onAction("resisted") }
+    val stopLp = LinearLayout.LayoutParams(
       LinearLayout.LayoutParams.MATCH_PARENT,
       LinearLayout.LayoutParams.WRAP_CONTENT
     )
-    rowLp.topMargin = dp(20)
-    row.layoutParams = rowLp
+    stopLp.topMargin = dp(20)
+    card.addView(stop, stopLp)
 
-    val proceed = makeButton("Continue anyway", filled = false) { onAction("proceeded") }
-    val stop = makeButton("Not now", filled = true) { onAction("resisted") }
-    val proceedLp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-    proceedLp.rightMargin = dp(6)
-    val stopLp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-    stopLp.leftMargin = dp(6)
-    row.addView(proceed, proceedLp)
-    row.addView(stop, stopLp)
-    card.addView(row)
+    val proceed = makeButton("I have a real reason — continue", filled = false) {
+      onAction("proceeded")
+    }
+    val proceedLp = LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT,
+      LinearLayout.LayoutParams.WRAP_CONTENT
+    )
+    proceedLp.topMargin = dp(10)
+    card.addView(proceed, proceedLp)
 
     root.addView(card)
     return root
+  }
+
+  /** The motivating family photo, or a teal placeholder with a "your family
+   *  photo" caption when none is configured. */
+  private fun buildPhotoBox(): View {
+    val box = FrameLayout(this)
+    val boxBg = GradientDrawable()
+    boxBg.setColor(photoBgColor)
+    boxBg.cornerRadius = dp(16).toFloat()
+    box.background = boxBg
+    box.clipToOutline = true
+    val boxLp = LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT,
+      dp(150)
+    )
+    boxLp.topMargin = dp(14)
+    box.layoutParams = boxLp
+
+    val photo = Prefs.getRandomPhoto(this)
+    val loaded = if (photo.isNotBlank()) {
+      try {
+        val iv = ImageView(this)
+        iv.scaleType = ImageView.ScaleType.CENTER_CROP
+        iv.layoutParams = FrameLayout.LayoutParams(
+          FrameLayout.LayoutParams.MATCH_PARENT,
+          FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        iv.setImageURI(Uri.parse(photo))
+        if (iv.drawable != null) { box.addView(iv); true } else false
+      } catch (e: Exception) {
+        false
+      }
+    } else {
+      false
+    }
+
+    if (!loaded) {
+      val ph = LinearLayout(this)
+      ph.orientation = LinearLayout.VERTICAL
+      ph.gravity = Gravity.CENTER
+      ph.layoutParams = FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.MATCH_PARENT,
+        FrameLayout.LayoutParams.MATCH_PARENT
+      )
+      val icon = TextView(this)
+      icon.text = "👥" // 👥 people glyph
+      icon.textSize = 40f
+      icon.gravity = Gravity.CENTER
+      ph.addView(icon)
+      val caption = TextView(this)
+      caption.text = "your family photo"
+      caption.setTextColor(0xFFE0F2EC.toInt())
+      caption.textSize = 13f
+      val capLp = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.WRAP_CONTENT,
+        LinearLayout.LayoutParams.WRAP_CONTENT
+      )
+      capLp.topMargin = dp(4)
+      caption.layoutParams = capLp
+      ph.addView(caption)
+      box.addView(ph)
+    }
+    return box
   }
 
   private fun makeButton(label: String, filled: Boolean, onClick: () -> Unit): TextView {
@@ -243,18 +327,18 @@ class AppMonitorService : Service() {
     b.text = label
     b.gravity = Gravity.CENTER
     b.textSize = 15f
-    b.setPadding(dp(8), dp(13), dp(8), dp(13))
+    b.setPadding(dp(8), dp(15), dp(8), dp(15))
     b.isClickable = true
     val bg = GradientDrawable()
-    bg.cornerRadius = dp(12).toFloat()
+    bg.cornerRadius = dp(14).toFloat()
     if (filled) {
-      bg.setColor(0xFF2FE3A8.toInt())
-      b.setTextColor(0xFF06121F.toInt())
+      bg.setColor(accentColor)
+      b.setTextColor(whiteColor)
       b.setTypeface(b.typeface, Typeface.BOLD)
     } else {
       bg.setColor(0x00000000)
-      bg.setStroke(dp(1), 0xFF3A4763.toInt())
-      b.setTextColor(0xFFB7C0D8.toInt())
+      bg.setStroke(dp(1), accentColor)
+      b.setTextColor(accentLight)
     }
     b.background = bg
     b.setOnClickListener { onClick() }
