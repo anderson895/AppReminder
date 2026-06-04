@@ -82,49 +82,5 @@ and a system overlay (`SYSTEM_ALERT_WINDOW`) draws the reminder + countdown on t
 opened app (locked to portrait). This requires a **dev/standalone build** (not Expo Go) and
 the user must grant **Usage access** + **Display over other apps**.
 
----
-
-## Firebase remote kill-switch (developer)
-
-The app ships **offline** (all user data is local SQLite), but checks one Firebase flag on
-launch/resume so the developer can **remotely disable** the app (e.g. if the client does not
-pay). This is already configured for project **`bettrmind-ba10a`**.
-
-**How it works**
-
-- On launch and on app-resume the app does a plain `fetch` to the **Firestore REST API** for
-  the document **`config/app`** and reads `{ enabled: bool, message: string }`
-  (`src/remoteGate.ts`).
-- If `enabled === false`, the whole app shows a **lock screen** and native monitoring stops.
-- The status is cached (AsyncStorage). A device that has **never reached Firebase defaults to
-  enabled** (offline first-run works); once it has seen `disabled` it **stays locked even
-  offline**. Network/missing-doc failures never lock the app.
-- No Firebase SDK is used — REST + `fetch` only, so it stays light and OTA-compatible.
-
-**What is already set up** (in this project)
-
-- Firestore `(default)` database with document `config/app` → `enabled: true`,
-  `message: "This application has been disabled. Please contact the developer to restore access."`
-- Security rules (`firestore.rules`, deployed): the flag is **publicly readable** but
-  **write-denied** — only the developer can change it. Config lives in `firebase.json` /
-  `.firebaserc`.
-
-**To LOCK or UNLOCK the app**
-
-1. Open the [Firebase console](https://console.firebase.google.com/project/bettrmind-ba10a/firestore)
-   → **Firestore Database** → `config` → `app`.
-2. Set **`enabled`** to **`false`** to lock (optionally edit `message`), or **`true`** to
-   unlock.
-3. The change applies the next time the client's app is opened **with internet** (and then
-   persists offline).
-
-**Re-deploying the rules** (only if changed):
-
-```bash
-firebase deploy --only firestore:rules --project bettrmind-ba10a
-```
-
-> **Deliverable note:** the kill-switch must be in the **embedded JS bundle** of the APK you
-> hand over, so build the final APK with `eas build -p android --profile preview` (an OTA
-> update only patches already-installed copies). The embedded `apiKey` is a public Firebase
-> web key — safe to ship; it cannot change the flag because writes are denied by rules.
+> **Fully offline:** BettrMind makes no network requests. All user data lives in local
+> SQLite on the device and nothing is uploaded anywhere.
