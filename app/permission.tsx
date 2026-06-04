@@ -27,6 +27,8 @@ import {
   detectionAvailable,
   hasUsageAccess,
   openUsageAccessSettings,
+  hasOverlayPermission,
+  openOverlaySettings,
   startMonitoring,
   configureReminder,
 } from '../src/native/detector';
@@ -43,6 +45,7 @@ export default function Permission() {
   const styles = useStyles();
   const { user } = useAuth();
   const [usageOk, setUsageOk] = useState(false);
+  const [overlayOk, setOverlayOk] = useState(false);
   const [notifOk, setNotifOk] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -71,6 +74,7 @@ export default function Permission() {
   const refresh = useCallback(() => {
     if (detectionAvailable) {
       setUsageOk(hasUsageAccess());
+      setOverlayOk(hasOverlayPermission());
       checkNotif();
     }
   }, [checkNotif]);
@@ -150,9 +154,16 @@ export default function Permission() {
           onPress={openUsageAccessSettings}
         />
         <PermRow
+          icon="application-outline"
+          title="Display over other apps"
+          desc="Show the reminder pop-up on top of the opened app."
+          granted={overlayOk}
+          onPress={openOverlaySettings}
+        />
+        <PermRow
           icon="bell-outline"
           title="Notifications"
-          desc="Send a gentle reminder when you open a watched app."
+          desc="Back-up reminder if the pop-up can't be shown."
           granted={notifOk}
           onPress={requestNotif}
         />

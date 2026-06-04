@@ -78,10 +78,16 @@ src/
 
 Detection runs for real via a local Expo native module (`modules/app-detector`, Kotlin):
 a foreground `Service` polls `UsageStatsManager` to learn which app is in the foreground.
-When a watched app opens, BettrMind posts a **heads-up notification**; tapping it opens the
-app to the reminder/countdown screen. It never covers the screen with an overlay and never
-blocks any app. This requires a **dev/standalone build** (not Expo Go) and the user must
-grant **Usage access** + **Notifications**.
+When a watched app opens, BettrMind draws a **reminder pop-up card** over it via a plain
+`SYSTEM_ALERT_WINDOW` overlay (with "Not now" / "Continue anyway" buttons — it does not
+hard-block the app). If the overlay permission isn't granted it falls back to a **heads-up
+notification**. No accessibility service is used, so it installs without the Play Protect
+block. This requires a **dev/standalone build** (not Expo Go) and the user grants **Usage
+access** + **Display over other apps**.
+
+> Apps that hide overlays (`setHideOverlayWindows`, e.g. GCash/Maya/banks) can suppress the
+> pop-up; for those the reminder simply won't appear — a deliberate trade-off to avoid the
+> accessibility service that Play Protect blocks.
 
 > **Fully offline:** BettrMind makes no network requests. All user data lives in local
 > SQLite on the device and nothing is uploaded anywhere.

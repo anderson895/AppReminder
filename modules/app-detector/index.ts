@@ -13,6 +13,14 @@ export function openUsageAccessSettings(): void {
   nativeModule?.openUsageAccessSettings();
 }
 
+export function hasOverlayPermission(): boolean {
+  return nativeModule?.hasOverlayPermission() ?? false;
+}
+
+export function openOverlaySettings(): void {
+  nativeModule?.openOverlaySettings();
+}
+
 export function startMonitoring(appsJson: string): void {
   nativeModule?.startMonitoring(appsJson);
 }

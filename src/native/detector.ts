@@ -12,6 +12,14 @@ export function openUsageAccessSettings(): void {
   Native.openUsageAccessSettings();
 }
 
+export function hasOverlayPermission(): boolean {
+  return Native.hasOverlayPermission();
+}
+
+export function openOverlaySettings(): void {
+  Native.openOverlaySettings();
+}
+
 export function isMonitoring(): boolean {
   return Native.isMonitoring();
 }
@@ -34,7 +42,8 @@ export function startMonitoring(apps: TriggerApp[]): void {
 
 /**
  * Tell the native side what message + countdown + motivation photos to use for
- * the reminder. The member + message are shown in the reminder notification.
+ * the reminder. The member + message are shown in the reminder pop-up (or the
+ * fallback notification).
  */
 export function configureReminder(
   member: string,

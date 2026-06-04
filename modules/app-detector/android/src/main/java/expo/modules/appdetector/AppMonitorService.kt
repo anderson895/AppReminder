@@ -10,21 +10,35 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.PixelFormat
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 
 /**
  * Foreground service that polls UsageStats to learn which app is in the
  * foreground. Every detected app-open is buffered (Prefs); if it matches a
- * trigger app, BettrMind posts a gentle heads-up reminder notification. Tapping
- * it opens BettrMind to the reminder screen. The app is never blocked and the
- * screen is never covered by an overlay.
+ * trigger app, BettrMind shows a reminder pop-up card drawn as an overlay over
+ * the app (no Activity, no accessibility — just SYSTEM_ALERT_WINDOW). The card
+ * has "Not now" / "Continue anyway" buttons; it never hard-blocks the app. When
+ * the overlay permission isn't granted, it falls back to a heads-up notification.
  */
 class AppMonitorService : Service() {
   private val handler = Handler(Looper.getMainLooper())
   private var lastEventTime = 0L
+
+  private var overlayView: View? = null
+  private val dismissOverlay = Runnable { removeOverlay() }
 
   companion object {
     const val CHANNEL_ID = "bettrmind_monitor"
@@ -32,6 +46,7 @@ class AppMonitorService : Service() {
     const val NOTIF_ID = 7321
     const val REMINDER_NOTIF_ID = 7322
     const val POLL_MS = 800L
+    const val OVERLAY_TIMEOUT_MS = 60_000L
   }
 
   private val poll = object : Runnable {
@@ -63,6 +78,7 @@ class AppMonitorService : Service() {
 
   override fun onDestroy() {
     handler.removeCallbacks(poll)
+    removeOverlay()
     Prefs.setMonitoring(this, false)
     super.onDestroy()
   }
@@ -82,13 +98,175 @@ class AppMonitorService : Service() {
     lastEventTime = now
 
     val pkg = latest ?: return
-    TriggerHandler.evaluate(this, pkg)?.let { notifyReminder(it) }
+    // The user switched to a different app — drop any reminder still showing.
+    if (overlayView != null && pkg != packageName) removeOverlay()
+    TriggerHandler.evaluate(this, pkg)?.let { remind(it) }
   }
 
+  /** Show the pop-up overlay; fall back to a notification if it can't be drawn. */
+  private fun remind(block: TriggerHandler.Block) {
+    if (showOverlayReminder(block)) return
+    notifyReminder(block)
+  }
+
+  /* ----------------------------- overlay pop-up ----------------------------- */
+
+  private fun showOverlayReminder(block: TriggerHandler.Block): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+      return false
+    }
+    removeOverlay()
+    return try {
+      val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+      val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+      } else {
+        @Suppress("DEPRECATION")
+        WindowManager.LayoutParams.TYPE_PHONE
+      }
+      val lp = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.MATCH_PARENT,
+        WindowManager.LayoutParams.MATCH_PARENT,
+        type,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+        PixelFormat.TRANSLUCENT
+      )
+      val view = buildReminderCard(block) { action -> onOverlayAction(block, action) }
+      wm.addView(view, lp)
+      overlayView = view
+      handler.removeCallbacks(dismissOverlay)
+      handler.postDelayed(dismissOverlay, OVERLAY_TIMEOUT_MS)
+      true
+    } catch (e: Exception) {
+      overlayView = null
+      false
+    }
+  }
+
+  private fun onOverlayAction(block: TriggerHandler.Block, action: String) {
+    when (action) {
+      "resisted" -> Prefs.addPending(this, block.pkg, block.appName, block.category, true, "resisted")
+      "proceeded" -> {
+        Prefs.addPending(this, block.pkg, block.appName, block.category, true, "proceeded")
+        // Don't immediately re-show the pop-up while they use the app.
+        val graceMs = Prefs.getReminderSeconds(this).toLong() * 1000L
+        Prefs.setProceedGrace(this, block.pkg, System.currentTimeMillis() + graceMs)
+      }
+    }
+    removeOverlay()
+  }
+
+  private fun removeOverlay() {
+    handler.removeCallbacks(dismissOverlay)
+    val v = overlayView ?: return
+    try {
+      (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(v)
+    } catch (e: Exception) {
+      // already detached
+    }
+    overlayView = null
+  }
+
+  private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+  /** Build the reminder card: dim scrim + centered card with title, message and
+   *  two buttons. Tapping a button fires [onAction] with "resisted"/"proceeded". */
+  private fun buildReminderCard(
+    block: TriggerHandler.Block,
+    onAction: (String) -> Unit
+  ): View {
+    val root = FrameLayout(this)
+    root.setBackgroundColor(0xCC0A0E1A.toInt())
+    root.setPadding(dp(24), dp(24), dp(24), dp(24))
+    root.isClickable = true // swallow taps on the scrim
+
+    val card = LinearLayout(this)
+    card.orientation = LinearLayout.VERTICAL
+    val cardBg = GradientDrawable()
+    cardBg.setColor(0xFF141A2E.toInt())
+    cardBg.cornerRadius = dp(20).toFloat()
+    card.background = cardBg
+    card.setPadding(dp(22), dp(22), dp(22), dp(18))
+    val cardLp = FrameLayout.LayoutParams(
+      FrameLayout.LayoutParams.MATCH_PARENT,
+      FrameLayout.LayoutParams.WRAP_CONTENT
+    )
+    cardLp.gravity = Gravity.CENTER
+    card.layoutParams = cardLp
+
+    val title = TextView(this)
+    title.text = "You opened ${block.appName}"
+    title.setTextColor(0xFFFFFFFF.toInt())
+    title.textSize = 18f
+    title.setTypeface(title.typeface, Typeface.BOLD)
+    card.addView(title)
+
+    val member = Prefs.getReminderMember(this)
+    val message = Prefs.getReminderMessage(this)
+    val msg = TextView(this)
+    msg.text = if (member.isNotBlank()) "$message\n— $member" else message
+    msg.setTextColor(0xFFB7C0D8.toInt())
+    msg.textSize = 15f
+    val msgLp = LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT,
+      LinearLayout.LayoutParams.WRAP_CONTENT
+    )
+    msgLp.topMargin = dp(12)
+    msg.layoutParams = msgLp
+    card.addView(msg)
+
+    val row = LinearLayout(this)
+    row.orientation = LinearLayout.HORIZONTAL
+    val rowLp = LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT,
+      LinearLayout.LayoutParams.WRAP_CONTENT
+    )
+    rowLp.topMargin = dp(20)
+    row.layoutParams = rowLp
+
+    val proceed = makeButton("Continue anyway", filled = false) { onAction("proceeded") }
+    val stop = makeButton("Not now", filled = true) { onAction("resisted") }
+    val proceedLp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+    proceedLp.rightMargin = dp(6)
+    val stopLp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+    stopLp.leftMargin = dp(6)
+    row.addView(proceed, proceedLp)
+    row.addView(stop, stopLp)
+    card.addView(row)
+
+    root.addView(card)
+    return root
+  }
+
+  private fun makeButton(label: String, filled: Boolean, onClick: () -> Unit): TextView {
+    val b = TextView(this)
+    b.text = label
+    b.gravity = Gravity.CENTER
+    b.textSize = 15f
+    b.setPadding(dp(8), dp(13), dp(8), dp(13))
+    b.isClickable = true
+    val bg = GradientDrawable()
+    bg.cornerRadius = dp(12).toFloat()
+    if (filled) {
+      bg.setColor(0xFF2FE3A8.toInt())
+      b.setTextColor(0xFF06121F.toInt())
+      b.setTypeface(b.typeface, Typeface.BOLD)
+    } else {
+      bg.setColor(0x00000000)
+      bg.setStroke(dp(1), 0xFF3A4763.toInt())
+      b.setTextColor(0xFFB7C0D8.toInt())
+    }
+    b.background = bg
+    b.setOnClickListener { onClick() }
+    return b
+  }
+
+  /* --------------------------- notification fallback ------------------------ */
+
   /**
-   * Post a heads-up reminder notification for a trigger app. We also stash the
-   * trigger in Prefs so that when the user taps the notification, BettrMind opens
-   * straight to the reminder/countdown screen (consumed via consumeLaunchTrigger).
+   * Fallback when the overlay can't be drawn (permission not granted): a
+   * heads-up reminder notification. Stashes the trigger so tapping it opens
+   * BettrMind to the reminder/countdown screen (consumed via consumeLaunchTrigger).
    */
   private fun notifyReminder(block: TriggerHandler.Block) {
     Prefs.setLaunchTrigger(this, block.pkg, block.appName, block.category)
@@ -108,7 +286,6 @@ class AppMonitorService : Service() {
 
     val member = Prefs.getReminderMember(this)
     val message = Prefs.getReminderMessage(this)
-    val title = "You opened ${block.appName}"
     val body = if (member.isNotBlank()) "$message — $member" else message
 
     val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -118,7 +295,7 @@ class AppMonitorService : Service() {
       Notification.Builder(this).setPriority(Notification.PRIORITY_HIGH)
     }
     builder
-      .setContentTitle(title)
+      .setContentTitle("You opened ${block.appName}")
       .setContentText(message)
       .setStyle(Notification.BigTextStyle().bigText(body))
       .setSmallIcon(android.R.drawable.ic_dialog_info)
@@ -129,6 +306,8 @@ class AppMonitorService : Service() {
     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     nm.notify(REMINDER_NOTIF_ID, builder.build())
   }
+
+  /* ------------------------- foreground service plumbing -------------------- */
 
   private fun startInForeground() {
     val notification = buildNotification()
@@ -155,7 +334,7 @@ class AppMonitorService : Service() {
       monitor.description = "BettrMind watches for gambling and financial apps"
       nm.createNotificationChannel(monitor)
 
-      // High importance so the reminder shows as a heads-up pop-up banner.
+      // High importance so the fallback reminder shows as a heads-up banner.
       val reminder = NotificationChannel(
         REMINDER_CHANNEL_ID,
         "Reminders",

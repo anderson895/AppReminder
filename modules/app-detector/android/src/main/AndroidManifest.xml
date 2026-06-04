@@ -6,6 +6,11 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!-- Draws the reminder pop-up card on top of a watched app. A plain overlay
+       window (not an Activity), so it needs no Background-Activity-Launch
+       exemption and — unlike an accessibility service — does not trip Play
+       Protect's install block. -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
   <!-- We only enumerate launchable apps (ACTION_MAIN/LAUNCHER) for the trigger-app
        picker and read their labels. That's all the package visibility we need, so

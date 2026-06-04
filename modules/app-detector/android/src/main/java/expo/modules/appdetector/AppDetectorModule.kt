@@ -3,6 +3,7 @@ package expo.modules.appdetector
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
@@ -23,6 +24,16 @@ class AppDetectorModule : Module() {
     Function("openUsageAccessSettings") {
       val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
+    }
+
+    Function("hasOverlayPermission") { Settings.canDrawOverlays(context) }
+
+    Function("openOverlaySettings") {
+      val intent = Intent(
+        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+        Uri.parse("package:" + context.packageName)
+      ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       context.startActivity(intent)
     }
 

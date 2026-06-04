@@ -68,10 +68,14 @@
       It does not read the content of your screen, text, keystrokes, or app data.
     </li>
     <li>
-      <strong>Notifications &amp; Foreground Service:</strong> the reminder is shown
-      as a notification when you open a watched app; the foreground service keeps the
-      detection running reliably and tells you it is active. BettrMind never covers
-      your screen and never blocks any app.
+      <strong>Display over other apps (SYSTEM_ALERT_WINDOW):</strong> used to show a
+      small reminder pop-up on top of a watched app. The pop-up has "Not now" and
+      "Continue anyway" buttons and does not block the app.
+    </li>
+    <li>
+      <strong>Notifications &amp; Foreground Service:</strong> the foreground service
+      keeps the detection running reliably and tells you it is active; a notification
+      is also used as a back-up reminder if the pop-up cannot be shown.
     </li>
     <li>
       <strong>Photos (optional):</strong> only if you choose to pick a motivating
