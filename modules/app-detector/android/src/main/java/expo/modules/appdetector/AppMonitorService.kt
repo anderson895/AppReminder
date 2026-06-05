@@ -162,7 +162,11 @@ class AppMonitorService : Service() {
 
   private fun onOverlayAction(block: TriggerHandler.Block, action: String) {
     when (action) {
-      "resisted" -> Prefs.addPending(this, block.pkg, block.appName, block.category, true, "resisted")
+      "resisted" -> {
+        // They decided not to open the app — log it and take them off the app.
+        Prefs.addPending(this, block.pkg, block.appName, block.category, true, "resisted")
+        goHome()
+      }
       "proceeded" -> {
         Prefs.addPending(this, block.pkg, block.appName, block.category, true, "proceeded")
         // After they wait out the pause, don't immediately re-show while they use it.
@@ -171,6 +175,20 @@ class AppMonitorService : Service() {
       }
     }
     removeOverlay()
+  }
+
+  /** Leave the watched app by going to the launcher. Called while the overlay is
+   *  still visible, so the background activity start is permitted (our visible
+   *  overlay window satisfies the Background-Activity-Launch check). */
+  private fun goHome() {
+    try {
+      val home = Intent(Intent.ACTION_MAIN)
+        .addCategory(Intent.CATEGORY_HOME)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      startActivity(home)
+    } catch (e: Exception) {
+      // best effort — if it's blocked, the pop-up still closes
+    }
   }
 
   /** "Don't show today" — snooze every reminder until tomorrow's local midnight. */
