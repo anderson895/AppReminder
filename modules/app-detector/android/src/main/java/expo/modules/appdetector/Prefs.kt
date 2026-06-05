@@ -177,6 +177,17 @@ object Prefs {
   fun isWithinGrace(ctx: Context, pkg: String): Boolean =
     graceMap(ctx).optLong(pkg, 0L) > System.currentTimeMillis()
 
+  /* ---- "don't show again today" snooze ----
+   * A single global timestamp; while now < it, no reminder shows for any app.
+   * Set to tomorrow's local midnight from the pop-up's "Don't show again today". */
+
+  fun setSnoozeUntil(ctx: Context, untilMillis: Long) {
+    p(ctx).edit().putLong("snoozeUntil", untilMillis).apply()
+  }
+
+  fun isSnoozed(ctx: Context): Boolean =
+    p(ctx).getLong("snoozeUntil", 0L) > System.currentTimeMillis()
+
   /** All muted apps as JSON array [{packageName, appName}]. */
   fun getMutedJson(ctx: Context): String {
     val map = mutedMap(ctx)

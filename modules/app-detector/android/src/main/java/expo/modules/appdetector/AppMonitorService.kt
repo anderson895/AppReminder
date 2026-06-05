@@ -16,10 +16,12 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
+import android.os.CountDownTimer
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import java.util.Calendar
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -42,6 +44,8 @@ class AppMonitorService : Service() {
   private var lastEventTime = 0L
 
   private var overlayView: View? = null
+  private var overlayRoot: FrameLayout? = null
+  private var countdownTimer: CountDownTimer? = null
   private val dismissOverlay = Runnable { removeOverlay() }
 
   companion object {
@@ -138,14 +142,20 @@ class AppMonitorService : Service() {
       // Keep the pop-up upright even when the watched app is in landscape — the
       // overlay's screenOrientation forces the screen to portrait while it shows.
       lp.screenOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-      val view = buildReminderCard { action -> onOverlayAction(block, action) }
-      wm.addView(view, lp)
-      overlayView = view
-      handler.removeCallbacks(dismissOverlay)
-      handler.postDelayed(dismissOverlay, OVERLAY_TIMEOUT_MS)
+
+      val root = FrameLayout(this)
+      root.setBackgroundColor(0xCC0A0E12.toInt())
+      root.setPadding(dp(20), dp(24), dp(20), dp(24))
+      root.isClickable = true // swallow taps on the scrim
+
+      wm.addView(root, lp)
+      overlayView = root
+      overlayRoot = root
+      showReminderStage(block)
       true
     } catch (e: Exception) {
       overlayView = null
+      overlayRoot = null
       false
     }
   }
@@ -155,7 +165,7 @@ class AppMonitorService : Service() {
       "resisted" -> Prefs.addPending(this, block.pkg, block.appName, block.category, true, "resisted")
       "proceeded" -> {
         Prefs.addPending(this, block.pkg, block.appName, block.category, true, "proceeded")
-        // Don't immediately re-show the pop-up while they use the app.
+        // After they wait out the pause, don't immediately re-show while they use it.
         val graceMs = Prefs.getReminderSeconds(this).toLong() * 1000L
         Prefs.setProceedGrace(this, block.pkg, System.currentTimeMillis() + graceMs)
       }
@@ -163,15 +173,31 @@ class AppMonitorService : Service() {
     removeOverlay()
   }
 
+  /** "Don't show today" — snooze every reminder until tomorrow's local midnight. */
+  private fun onSnooze() {
+    val cal = Calendar.getInstance()
+    cal.add(Calendar.DAY_OF_YEAR, 1)
+    cal.set(Calendar.HOUR_OF_DAY, 0)
+    cal.set(Calendar.MINUTE, 0)
+    cal.set(Calendar.SECOND, 0)
+    cal.set(Calendar.MILLISECOND, 0)
+    Prefs.setSnoozeUntil(this, cal.timeInMillis)
+    removeOverlay()
+  }
+
   private fun removeOverlay() {
     handler.removeCallbacks(dismissOverlay)
-    val v = overlayView ?: return
+    countdownTimer?.cancel()
+    countdownTimer = null
+    val v = overlayView
+    overlayView = null
+    overlayRoot = null
+    if (v == null) return
     try {
       (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(v)
     } catch (e: Exception) {
       // already detached
     }
-    overlayView = null
   }
 
   private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
@@ -183,26 +209,8 @@ class AppMonitorService : Service() {
   private val accentLight = 0xFFBFEDE0.toInt()
   private val whiteColor = 0xFFFFFFFF.toInt()
 
-  /** Build the reminder card matching the reference UI: header, family-photo
-   *  box, "from <member>", the message, and two stacked buttons. Tapping fires
-   *  [onAction] with "resisted" ("I don't need to open this") or "proceeded"
-   *  ("I have a real reason — continue"). */
-  private fun buildReminderCard(onAction: (String) -> Unit): View {
-    val root = FrameLayout(this)
-    root.setBackgroundColor(0xCC0A0E12.toInt())
-    root.setPadding(dp(20), dp(24), dp(20), dp(24))
-    root.isClickable = true // swallow taps on the scrim
-
-    // A ScrollView centers the card and lets it scroll if the screen is short
-    // (e.g. with the keyboard, or a very small device), so nothing is clipped.
-    val scroll = ScrollView(this)
-    val scrollLp = FrameLayout.LayoutParams(
-      FrameLayout.LayoutParams.MATCH_PARENT,
-      FrameLayout.LayoutParams.WRAP_CONTENT
-    )
-    scrollLp.gravity = Gravity.CENTER
-    scroll.layoutParams = scrollLp
-
+  /** A styled, vertical card; mounted into the scrim via [mountCard]. */
+  private fun newCard(): LinearLayout {
     val card = LinearLayout(this)
     card.orientation = LinearLayout.VERTICAL
     val cardBg = GradientDrawable()
@@ -214,6 +222,39 @@ class AppMonitorService : Service() {
       FrameLayout.LayoutParams.MATCH_PARENT,
       FrameLayout.LayoutParams.WRAP_CONTENT
     )
+    return card
+  }
+
+  /** Replace the scrim's content with [card], centered and scrollable. */
+  private fun mountCard(card: LinearLayout) {
+    val root = overlayRoot ?: return
+    root.removeAllViews()
+    val scroll = ScrollView(this)
+    val scrollLp = FrameLayout.LayoutParams(
+      FrameLayout.LayoutParams.MATCH_PARENT,
+      FrameLayout.LayoutParams.WRAP_CONTENT
+    )
+    scrollLp.gravity = Gravity.CENTER
+    scroll.layoutParams = scrollLp
+    scroll.addView(card)
+    root.addView(scroll)
+  }
+
+  private fun fullWidth(topMargin: Int): LinearLayout.LayoutParams {
+    val lp = LinearLayout.LayoutParams(
+      LinearLayout.LayoutParams.MATCH_PARENT,
+      LinearLayout.LayoutParams.WRAP_CONTENT
+    )
+    lp.topMargin = dp(topMargin)
+    return lp
+  }
+
+  /** Stage 1: the reference reminder card. */
+  private fun showReminderStage(block: TriggerHandler.Block) {
+    handler.removeCallbacks(dismissOverlay)
+    handler.postDelayed(dismissOverlay, OVERLAY_TIMEOUT_MS)
+
+    val card = newCard()
 
     val header = TextView(this)
     header.text = "before you continue…"
@@ -229,12 +270,7 @@ class AppMonitorService : Service() {
     from.text = if (member.isNotBlank()) "from $member" else "a message for you"
     from.setTextColor(accentLight)
     from.textSize = 13f
-    val fromLp = LinearLayout.LayoutParams(
-      LinearLayout.LayoutParams.MATCH_PARENT,
-      LinearLayout.LayoutParams.WRAP_CONTENT
-    )
-    fromLp.topMargin = dp(16)
-    from.layoutParams = fromLp
+    from.layoutParams = fullWidth(16)
     card.addView(from)
 
     val msg = TextView(this)
@@ -242,35 +278,93 @@ class AppMonitorService : Service() {
     msg.setTextColor(whiteColor)
     msg.textSize = 16f
     msg.setTypeface(msg.typeface, Typeface.BOLD)
-    val msgLp = LinearLayout.LayoutParams(
-      LinearLayout.LayoutParams.MATCH_PARENT,
-      LinearLayout.LayoutParams.WRAP_CONTENT
-    )
-    msgLp.topMargin = dp(6)
-    msg.layoutParams = msgLp
+    msg.layoutParams = fullWidth(6)
     card.addView(msg)
 
-    val stop = makeButton("I don't need to open this", filled = true) { onAction("resisted") }
-    val stopLp = LinearLayout.LayoutParams(
-      LinearLayout.LayoutParams.MATCH_PARENT,
-      LinearLayout.LayoutParams.WRAP_CONTENT
-    )
-    stopLp.topMargin = dp(20)
-    card.addView(stop, stopLp)
+    val stop = makeButton("I don't need to open this", filled = true) {
+      onOverlayAction(block, "resisted")
+    }
+    card.addView(stop, fullWidth(20))
 
     val proceed = makeButton("I have a real reason — continue", filled = false) {
-      onAction("proceeded")
+      showCountdownStage(block)
     }
-    val proceedLp = LinearLayout.LayoutParams(
-      LinearLayout.LayoutParams.MATCH_PARENT,
-      LinearLayout.LayoutParams.WRAP_CONTENT
-    )
-    proceedLp.topMargin = dp(10)
-    card.addView(proceed, proceedLp)
+    card.addView(proceed, fullWidth(10))
 
-    scroll.addView(card)
-    root.addView(scroll)
-    return root
+    val snooze = makeGhostButton("Don't show again today") { onSnooze() }
+    card.addView(snooze, fullWidth(4))
+
+    mountCard(card)
+  }
+
+  /** Stage 2: the pause countdown. The user can only proceed once it ends. */
+  private fun showCountdownStage(block: TriggerHandler.Block) {
+    handler.removeCallbacks(dismissOverlay) // never auto-dismiss during the pause
+    countdownTimer?.cancel()
+
+    val card = newCard()
+
+    val header = TextView(this)
+    header.text = "Take a moment to pause"
+    header.setTextColor(whiteColor)
+    header.textSize = 18f
+    header.setTypeface(header.typeface, Typeface.BOLD)
+    header.gravity = Gravity.CENTER
+    card.addView(header)
+
+    val seconds = Prefs.getReminderSeconds(this)
+    val timer = TextView(this)
+    timer.text = formatTime(seconds.toLong() * 1000L)
+    timer.setTextColor(accentLight)
+    timer.textSize = 48f
+    timer.setTypeface(timer.typeface, Typeface.BOLD)
+    timer.gravity = Gravity.CENTER
+    timer.layoutParams = fullWidth(14)
+    card.addView(timer)
+
+    val sub = TextView(this)
+    sub.text = "When the timer ends you can continue."
+    sub.setTextColor(0xFFB7C7C2.toInt())
+    sub.textSize = 14f
+    sub.gravity = Gravity.CENTER
+    sub.layoutParams = fullWidth(8)
+    card.addView(sub)
+
+    val buttons = LinearLayout(this)
+    buttons.orientation = LinearLayout.VERTICAL
+    buttons.layoutParams = fullWidth(20)
+    val changedMind = makeButton("I changed my mind", filled = true) {
+      onOverlayAction(block, "resisted")
+    }
+    buttons.addView(changedMind, fullWidth(0))
+    card.addView(buttons)
+
+    mountCard(card)
+
+    countdownTimer = object : CountDownTimer(seconds.toLong() * 1000L, 1000L) {
+      override fun onTick(msLeft: Long) {
+        timer.text = formatTime(msLeft)
+      }
+
+      override fun onFinish() {
+        timer.text = "0:00"
+        sub.text = "You waited it out. You can continue now."
+        buttons.removeAllViews()
+        val cont = makeButton("Continue to ${block.appName}", filled = true) {
+          onOverlayAction(block, "proceeded")
+        }
+        buttons.addView(cont, fullWidth(0))
+        val close = makeButton("Close", filled = false) {
+          onOverlayAction(block, "resisted")
+        }
+        buttons.addView(close, fullWidth(10))
+      }
+    }.start()
+  }
+
+  private fun formatTime(ms: Long): String {
+    val total = (ms / 1000).toInt()
+    return String.format("%d:%02d", total / 60, total % 60)
   }
 
   /** The motivating family photo, or a teal placeholder with a "your family
@@ -355,6 +449,19 @@ class AppMonitorService : Service() {
       b.setTextColor(accentLight)
     }
     b.background = bg
+    b.setOnClickListener { onClick() }
+    return b
+  }
+
+  /** A subtle text-only button (e.g. "Don't show again today"). */
+  private fun makeGhostButton(label: String, onClick: () -> Unit): TextView {
+    val b = TextView(this)
+    b.text = label
+    b.gravity = Gravity.CENTER
+    b.textSize = 13f
+    b.setPadding(dp(8), dp(12), dp(8), dp(8))
+    b.isClickable = true
+    b.setTextColor(0xFF8AA39C.toInt())
     b.setOnClickListener { onClick() }
     return b
   }

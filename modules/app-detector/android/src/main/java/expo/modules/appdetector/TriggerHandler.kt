@@ -76,6 +76,11 @@ object TriggerHandler {
       Prefs.addPending(ctx, pkg, appName, category, true, "opened")
       return null
     }
+    if (Prefs.isSnoozed(ctx)) {
+      // "Don't show again today" is active — log the open but don't remind.
+      Prefs.addPending(ctx, pkg, appName, category, true, "opened")
+      return null
+    }
     if (Prefs.isWithinGrace(ctx, pkg)) {
       // User recently waited out the countdown and chose to continue — let them.
       Prefs.addPending(ctx, pkg, appName, category, true, "opened")
