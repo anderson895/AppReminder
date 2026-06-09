@@ -127,7 +127,7 @@ export default function Apps() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.note}>
-          These are the apps BettrMind watches, set by your administrator. When you open
+          These are the apps BetFree watches, set by your administrator. When you open
           one of them, a reminder appears before you continue.
         </Text>
         {apps.length === 0 && (

@@ -30,7 +30,7 @@ object TriggerHandler {
     val lower = pkg.lowercase()
 
     if (pkg == ctx.packageName) {
-      // The user is inside BettrMind itself (e.g. un-muting in Settings, or the
+      // The user is inside BetFree itself (e.g. un-muting in Settings, or the
       // blocker is up). Forget the last package so the next trigger-app open is
       // always re-evaluated.
       lastPkg = null

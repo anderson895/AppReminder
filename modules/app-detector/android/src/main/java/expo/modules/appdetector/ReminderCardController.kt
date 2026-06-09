@@ -14,7 +14,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 
 /**
- * Builds and drives the BettrMind "friction" reminder card: the reference card
+ * Builds and drives the BetFree "friction" reminder card: the reference card
  * (Stage 1) → the pause countdown (Stage 2) → continue.
  *
  * UI-only and host-agnostic — it renders into the [root] it's handed and reports
@@ -220,7 +220,7 @@ class ReminderCardController(
     box.clipToOutline = true
     val boxLp = LinearLayout.LayoutParams(
       LinearLayout.LayoutParams.MATCH_PARENT,
-      dp(150)
+      LinearLayout.LayoutParams.WRAP_CONTENT
     )
     boxLp.topMargin = dp(14)
     box.layoutParams = boxLp
@@ -229,10 +229,15 @@ class ReminderCardController(
     val loaded = if (photo.isNotBlank()) {
       try {
         val iv = ImageView(ctx)
-        iv.scaleType = ImageView.ScaleType.CENTER_CROP
+        // Show the whole photo, uncropped — fit the full image inside the box
+        // and let the box grow to the image's aspect ratio (capped) instead of
+        // cropping it to a fixed height.
+        iv.scaleType = ImageView.ScaleType.FIT_CENTER
+        iv.adjustViewBounds = true
+        iv.maxHeight = dp(400)
         iv.layoutParams = FrameLayout.LayoutParams(
           FrameLayout.LayoutParams.MATCH_PARENT,
-          FrameLayout.LayoutParams.MATCH_PARENT
+          FrameLayout.LayoutParams.WRAP_CONTENT
         )
         iv.setImageURI(Uri.parse(photo))
         if (iv.drawable != null) { box.addView(iv); true } else false
@@ -244,6 +249,11 @@ class ReminderCardController(
     }
 
     if (!loaded) {
+      // Placeholder keeps the original fixed height.
+      box.layoutParams = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        dp(150)
+      ).apply { topMargin = dp(14) }
       val ph = LinearLayout(ctx)
       ph.orientation = LinearLayout.VERTICAL
       ph.gravity = Gravity.CENTER

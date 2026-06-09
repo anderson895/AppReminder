@@ -119,7 +119,7 @@ export default function Permission() {
           </View>
           <Text style={styles.title}>Enable App Monitoring</Text>
           <Text style={styles.subtitle}>
-            Real background detection runs only in the installed BettrMind app. In this
+            Real background detection runs only in the installed BetFree app. In this
             preview the permission step is recorded so the flow is complete.
           </Text>
           <PrimaryButton
@@ -142,7 +142,7 @@ export default function Permission() {
         </View>
         <Text style={styles.title}>Enable App Monitoring</Text>
         <Text style={styles.subtitle}>
-          BettrMind needs these so it can notice when you open a gambling or financial
+          BetFree needs these so it can notice when you open a gambling or financial
           app and remind you before you continue.
         </Text>
 
@@ -171,7 +171,7 @@ export default function Permission() {
         <View style={styles.notice}>
           <MaterialCommunityIcons name="lock-check-outline" size={18} color={colors.textMuted} />
           <Text style={styles.noticeText}>
-            BettrMind only checks the app you open against the monitored list. It never
+            BetFree only checks the app you open against the monitored list. It never
             reads your messages, transactions, or balances.
           </Text>
         </View>

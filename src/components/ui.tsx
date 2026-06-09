@@ -164,12 +164,12 @@ export function StatTile({ value, label, style }: StatTileProps) {
   );
 }
 
-/** BettrMind branded top bar with a faux clock, matching the mockups. */
+/** BetFree branded top bar with a faux clock, matching the mockups. */
 export function BrandHeader({ time = '9:41' }: { time?: string }) {
   const styles = useStyles();
   return (
     <View style={styles.header}>
-      <Text style={styles.brand}>BettrMind</Text>
+      <Text style={styles.brand}>BetFree</Text>
       <Text style={styles.clock}>{time}</Text>
     </View>
   );

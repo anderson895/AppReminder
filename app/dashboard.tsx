@@ -152,7 +152,7 @@ export default function Dashboard() {
     <SafeAreaView style={styles.safe}>
       {/* Branded header */}
       <View style={styles.header}>
-        <Text style={styles.brand}>BettrMind</Text>
+        <Text style={styles.brand}>BetFree</Text>
         <IconButton
           icon="cog-outline"
           size={22}
@@ -195,7 +195,11 @@ export default function Dashboard() {
               style={{ marginRight: spacing(1) }}
             />
             <StatTile
-              value={stats ? `${stats.longestStreakWeeks} wks` : '0 wks'}
+              value={
+                stats
+                  ? `${stats.longestStreakWeeks} ${stats.longestStreakWeeks === 1 ? 'week' : 'weeks'}`
+                  : '0 weeks'
+              }
               label="Best Streak"
               style={{ marginLeft: spacing(1) }}
             />

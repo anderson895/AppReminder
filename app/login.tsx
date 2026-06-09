@@ -72,7 +72,7 @@ export default function Login() {
               style={styles.logoImg}
               resizeMode="contain"
             />
-            <Text style={styles.brand}>BettrMind</Text>
+            <Text style={styles.brand}>BetFree</Text>
             <Text style={styles.tagline}>Pause. Think. Choose better.</Text>
           </View>
 

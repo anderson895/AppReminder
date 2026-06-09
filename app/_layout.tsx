@@ -31,7 +31,7 @@ function ThemedApp() {
         </Text>
       ) : (
         <Text style={[styles.loadingText, { color: colors.textMuted }]}>
-          Setting up BettrMind…
+          Setting up BetFree…
         </Text>
       )}
     </View>

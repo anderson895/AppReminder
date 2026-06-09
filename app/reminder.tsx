@@ -61,7 +61,7 @@ export default function Reminder() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.bar}>
-        <Text style={styles.brand}>BettrMind</Text>
+        <Text style={styles.brand}>BetFree</Text>
         <Text style={styles.clock}>9:42</Text>
       </View>
 
@@ -74,7 +74,7 @@ export default function Reminder() {
         {/* Motivation photo card — the user's uploaded photo, or a placeholder */}
         <View style={styles.photoCard}>
           {photo ? (
-            <Image source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
+            <Image source={{ uri: photo }} style={styles.photo} resizeMode="contain" />
           ) : (
             <>
               <MaterialCommunityIcons name="account-group" size={56} color={colors.teal} />
@@ -123,7 +123,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   photoCard: {
     backgroundColor: colors.tealDark,
     borderRadius: radius.md,
-    height: 150,
+    height: 240,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: spacing(2.5),

@@ -22,7 +22,7 @@ import android.view.WindowManager
 /**
  * Foreground service that polls UsageStats to learn which app is in the
  * foreground. Every detected app-open is buffered (Prefs); if it matches a
- * trigger app, BettrMind launches a full-screen [ReminderActivity] friction
+ * trigger app, BetFree launches a full-screen [ReminderActivity] friction
  * card. The card has "I don't need to open this" / "continue" buttons; it never
  * hard-blocks the app. When the activity can't be launched (no overlay
  * permission, so no background-activity-launch exemption) it falls back to a
@@ -195,7 +195,7 @@ class AppMonitorService : Service() {
   /**
    * Fallback when the reminder activity can't be launched (overlay permission
    * not granted): a heads-up reminder notification. Stashes the trigger so
-   * tapping it opens BettrMind to the reminder/countdown screen (consumed via
+   * tapping it opens BetFree to the reminder/countdown screen (consumed via
    * consumeLaunchTrigger).
    */
   private fun notifyReminder(block: TriggerHandler.Block) {
@@ -261,7 +261,7 @@ class AppMonitorService : Service() {
         "App monitoring",
         NotificationManager.IMPORTANCE_LOW
       )
-      monitor.description = "BettrMind watches for gambling and financial apps"
+      monitor.description = "BetFree watches for gambling and financial apps"
       nm.createNotificationChannel(monitor)
 
       // High importance so the fallback reminder shows as a heads-up banner.
@@ -283,7 +283,7 @@ class AppMonitorService : Service() {
       Notification.Builder(this)
     }
     return builder
-      .setContentTitle("BettrMind is active")
+      .setContentTitle("BetFree is active")
       .setContentText("Watching for gambling & financial apps")
       .setSmallIcon(android.R.drawable.ic_dialog_info)
       .setOngoing(true)

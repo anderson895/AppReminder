@@ -121,7 +121,7 @@ export default function Countdown() {
               style={{ alignSelf: 'stretch', marginTop: spacing(4) }}
             />
             <OutlineButton
-              label="Back to BettrMind"
+              label="Back to BetFree"
               onPress={() => router.replace('/dashboard')}
               style={{ alignSelf: 'stretch', marginTop: spacing(1.5) }}
             />

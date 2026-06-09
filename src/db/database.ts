@@ -16,7 +16,7 @@ import type {
 } from '../types';
 
 /**
- * BettrMind local database (SQLite via expo-sqlite, async API).
+ * BetFree local database (SQLite via expo-sqlite, async API).
  *
  * Tables
  *  - users          : account credentials + profile
@@ -713,7 +713,7 @@ export async function getStats(userId: number): Promise<Stats> {
 
   return {
     streakDays: streak,
-    longestStreakWeeks: Math.max(1, Math.floor(longest / 7)),
+    longestStreakWeeks: Math.floor(longest / 7),
     longestStreakDays: longest,
     urgesResisted: totalResisted,
     urgesBlocked,

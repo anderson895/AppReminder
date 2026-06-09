@@ -6,7 +6,7 @@ import org.json.JSONObject
 
 /**
  * Lightweight persistence for the monitor. Survives the JS engine being killed,
- * so detected app-opens are buffered until the BettrMind app next reads them.
+ * so detected app-opens are buffered until the BetFree app next reads them.
  */
 object Prefs {
   private const val NAME = "bettrmind_app_detector"

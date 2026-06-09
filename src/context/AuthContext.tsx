@@ -14,7 +14,6 @@ import {
   getUserById,
   getAdminById,
 } from '../db/database';
-import { stopMonitoring } from '../native/detector';
 import type { User, Admin, LoginResult, RegisterResult } from '../types';
 
 const SESSION_KEY = 'bettrmind_session';
@@ -116,13 +115,10 @@ export function AuthProvider({
   );
 
   const logout = useCallback(() => {
-    // Stop the native monitor so the reminder pop-up never triggers while no
-    // one is logged in.
-    try {
-      stopMonitoring();
-    } catch {
-      // no-op when the native module isn't available (e.g. Expo Go)
-    }
+    // Keep the native monitor running so the reminder pop-up still triggers on
+    // a watched trigger app even while no one is logged in. The service runs as
+    // an independent foreground service with its trigger list + reminder config
+    // persisted in native Prefs, so it survives logout.
     setUser(null);
     setAdmin(null);
     AsyncStorage.removeItem(SESSION_KEY).catch(() => {});

@@ -1,7 +1,7 @@
 import { MD3DarkTheme } from 'react-native-paper';
 
 /**
- * BettrMind design tokens.
+ * BetFree design tokens.
  *
  * Two switchable palettes (chosen in Settings):
  *  - 'navy'   : deep ocean-blue canvas, sky-blue accent  (referenceUis/color1.png)

@@ -1,4 +1,4 @@
-/** Shared domain types for BettrMind. */
+/** Shared domain types for BetFree. */
 
 export type Category = 'gambling' | 'financial' | 'other';
 export type EventAction = 'resisted' | 'proceeded' | 'opened';

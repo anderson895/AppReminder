@@ -1,4 +1,4 @@
-What's New in BettrMind 1.0.0
+What's New in BetFree 1.0.0
 ==============================
 
 • Reminders now work with banking apps. The "before you continue" card
@@ -9,7 +9,7 @@ What's New in BettrMind 1.0.0
   the reminder always shows up when you open a watched app.
 
 • Accurate "Days Bet-Free" counter. The streak now counts only from the
-  day you started using BettrMind, instead of showing a misleadingly
+  day you started using BetFree, instead of showing a misleadingly
   large number for new accounts. It grows one day at a time you stay
   bet-free and resets if you open a gambling app.
 

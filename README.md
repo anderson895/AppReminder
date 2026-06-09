@@ -1,9 +1,9 @@
-# BettrMind
+# BetFree
 
 A gambling-app reminder mobile application built with **Expo (React Native) + TypeScript**,
 **expo-router**, **React Native Paper**, and **SQLite (expo-sqlite)**.
 
-BettrMind asks you to pause before opening gambling and financial apps (GCash, Maya, etc.).
+BetFree asks you to pause before opening gambling and financial apps (GCash, Maya, etc.).
 Before access is granted it shows a friction reminder — a message from a loved one — and a
 countdown timer, then logs every detected attempt under your account.
 
@@ -78,7 +78,7 @@ src/
 
 Detection runs for real via a local Expo native module (`modules/app-detector`, Kotlin):
 a foreground `Service` polls `UsageStatsManager` to learn which app is in the foreground.
-When a watched app opens, BettrMind draws a **reminder pop-up card** over it via a plain
+When a watched app opens, BetFree draws a **reminder pop-up card** over it via a plain
 `SYSTEM_ALERT_WINDOW` overlay (with "Not now" / "Continue anyway" buttons — it does not
 hard-block the app). If the overlay permission isn't granted it falls back to a **heads-up
 notification**. No accessibility service is used, so it installs without the Play Protect
@@ -89,5 +89,5 @@ access** + **Display over other apps**.
 > pop-up; for those the reminder simply won't appear — a deliberate trade-off to avoid the
 > accessibility service that Play Protect blocks.
 
-> **Fully offline:** BettrMind makes no network requests. All user data lives in local
+> **Fully offline:** BetFree makes no network requests. All user data lives in local
 > SQLite on the device and nothing is uploaded anywhere.

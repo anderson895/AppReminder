@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "BettrMind",
+    "name": "BetFree",
     "slug": "bettrmind",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,13 +11,13 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
+      "backgroundColor": "#E6F1FB"
     },
     "android": {
       "package": "com.bettrmind.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#E6F1FB"
       },
       "runtimeVersion": {
         "policy": "appVersion"
@@ -43,7 +43,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "BettrMind uses your photos so you can pick a motivating image to show on the reminder pop-up."
+          "photosPermission": "BetFree uses your photos so you can pick a motivating image to show on the reminder pop-up."
         }
       ]
     ],
