@@ -1,0 +1,17 @@
+What's New in BettrMind 1.0.0
+==============================
+
+• Reminders now work with banking apps. The "before you continue" card
+  is shown as its own full screen instead of an overlay, so apps like
+  GCash no longer block it. Your reminder appears reliably every time.
+
+• Cleaner reminder card. Removed the "Don't show again today" option so
+  the reminder always shows up when you open a watched app.
+
+• Accurate "Days Bet-Free" counter. The streak now counts only from the
+  day you started using BettrMind, instead of showing a misleadingly
+  large number for new accounts. It grows one day at a time you stay
+  bet-free and resets if you open a gambling app.
+
+• Still fully offline. No account sync, no network — your data stays on
+  your device.
