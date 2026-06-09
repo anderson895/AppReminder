@@ -96,30 +96,6 @@ export function getInstalledApps(): InstalledApp[] {
   }
 }
 
-export interface MutedApp {
-  packageName: string;
-  appName: string;
-}
-
-/** Apps the user silenced via "don't show again" on the pop-up. */
-export function getMutedApps(): MutedApp[] {
-  try {
-    const parsed = JSON.parse(Native.getMutedAppsJson()) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((a): a is MutedApp => !!a && typeof a.packageName === 'string')
-      .map((a) => ({ packageName: a.packageName, appName: a.appName || a.packageName }))
-      .sort((a, b) => a.appName.localeCompare(b.appName));
-  } catch {
-    return [];
-  }
-}
-
-/** Un-mute an app so its reminder pop-up shows again. */
-export function unmuteApp(packageName: string): void {
-  Native.unmuteApp(packageName);
-}
-
 /** If a trigger app was just opened, returns it once (then clears it). */
 export function consumeLaunchTrigger(): DetectedOpen | null {
   const raw = Native.consumeLaunchTriggerJson();

@@ -10,11 +10,14 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.view.View
+import android.view.WindowManager
 
 /**
  * Foreground service that polls UsageStats to learn which app is in the
@@ -34,6 +37,10 @@ import android.provider.Settings
 class AppMonitorService : Service() {
   private val handler = Handler(Looper.getMainLooper())
   private var lastEventTime = 0L
+
+  // A 1x1, transparent overlay added just long enough to satisfy the Android 14+
+  // background-activity-launch check (see launchReminderActivity).
+  private var balOverlay: View? = null
 
   companion object {
     const val CHANNEL_ID = "bettrmind_monitor"
@@ -72,6 +79,7 @@ class AppMonitorService : Service() {
 
   override fun onDestroy() {
     handler.removeCallbacks(poll)
+    removeBalOverlay()
     Prefs.setMonitoring(this, false)
     super.onDestroy()
   }
@@ -102,31 +110,83 @@ class AppMonitorService : Service() {
   }
 
   /**
-   * Bring up [ReminderActivity] over the watched app. Starting an activity from
-   * a background service is normally blocked on Android 10+, but holding
-   * SYSTEM_ALERT_WINDOW grants the background-activity-launch exemption — so we
-   * require that permission and otherwise fall back to the notification.
+   * Bring up [ReminderActivity] over the watched app.
+   *
+   * Starting an activity from a background foreground-service is blocked by the
+   * Android 14+ background-activity-launch (BAL) rules. Holding
+   * SYSTEM_ALERT_WINDOW is no longer enough on its own — the launching UID must
+   * have an *actually-visible* overlay window at launch time
+   * (`hasNonAppVisibleWindow`). So we briefly add a 1x1 transparent overlay to
+   * satisfy that check, fire the activity, then remove the overlay once it's up.
+   * The activity (not this window) renders the UI, so the watched app has no
+   * overlay to detect. Note: a BAL block is silent (no exception), so we can't
+   * detect it here — we gate solely on the overlay permission and otherwise let
+   * the activity come up.
    */
   private fun launchReminderActivity(block: TriggerHandler.Block): Boolean {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
       return false
     }
-    return try {
-      val i = Intent(this, ReminderActivity::class.java).apply {
-        addFlags(
-          Intent.FLAG_ACTIVITY_NEW_TASK or
-            Intent.FLAG_ACTIVITY_CLEAR_TOP or
-            Intent.FLAG_ACTIVITY_SINGLE_TOP or
-            Intent.FLAG_ACTIVITY_NO_ANIMATION
-        )
-        putExtra(ReminderActivity.EXTRA_PKG, block.pkg)
-        putExtra(ReminderActivity.EXTRA_APP_NAME, block.appName)
-        putExtra(ReminderActivity.EXTRA_CATEGORY, block.category)
+    val i = Intent(this, ReminderActivity::class.java).apply {
+      addFlags(
+        Intent.FLAG_ACTIVITY_NEW_TASK or
+          Intent.FLAG_ACTIVITY_CLEAR_TOP or
+          Intent.FLAG_ACTIVITY_SINGLE_TOP or
+          Intent.FLAG_ACTIVITY_NO_ANIMATION
+      )
+      putExtra(ReminderActivity.EXTRA_PKG, block.pkg)
+      putExtra(ReminderActivity.EXTRA_APP_NAME, block.appName)
+      putExtra(ReminderActivity.EXTRA_CATEGORY, block.category)
+    }
+
+    addBalOverlay()
+    // Give the overlay a frame to actually become visible before the system
+    // evaluates the BAL check, then launch and tear the overlay back down.
+    handler.postDelayed({
+      try {
+        startActivity(i)
+      } catch (e: Exception) {
+        // ignore — the notification path isn't reachable from here since a BAL
+        // block doesn't throw; permission was already verified above
       }
-      startActivity(i)
-      true
+      handler.postDelayed({ removeBalOverlay() }, 1500)
+    }, 150)
+    return true
+  }
+
+  /** Add the tiny transparent overlay that unlocks background-activity-launch. */
+  private fun addBalOverlay() {
+    if (balOverlay != null) return
+    try {
+      val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+      val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+      } else {
+        @Suppress("DEPRECATION")
+        WindowManager.LayoutParams.TYPE_PHONE
+      }
+      val lp = WindowManager.LayoutParams(
+        1, 1, type,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+          WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+          WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        PixelFormat.TRANSLUCENT
+      )
+      val v = View(this)
+      wm.addView(v, lp)
+      balOverlay = v
     } catch (e: Exception) {
-      false
+      balOverlay = null
+    }
+  }
+
+  private fun removeBalOverlay() {
+    val v = balOverlay ?: return
+    balOverlay = null
+    try {
+      (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(v)
+    } catch (e: Exception) {
+      // already detached
     }
   }
 

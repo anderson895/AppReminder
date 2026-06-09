@@ -69,12 +69,6 @@ class AppDetectorModule : Module() {
       trigger
     }
 
-    // Apps the user muted via "don't show again", as JSON [{packageName, appName}].
-    Function("getMutedAppsJson") { Prefs.getMutedJson(context) }
-
-    // Un-mute an app so its reminder pop-up shows again.
-    Function("unmuteApp") { pkg: String -> Prefs.removeMuted(context, pkg) }
-
     // Launchable apps installed on the device, as JSON [{packageName, label}].
     Function("getInstalledAppsJson") {
       val pm = context.packageManager

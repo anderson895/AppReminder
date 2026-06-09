@@ -123,40 +123,6 @@ object Prefs {
     }
   }
 
-  /* ---- "don't show again" muted packages ----
-   * Stored as a JSON object { packageName: appName } so the Settings screen can
-   * list muted apps by name and let the user un-mute them. A legacy StringSet
-   * ("muted") from earlier builds is still honoured for read/remove. */
-
-  private fun mutedMap(ctx: Context): JSONObject = try {
-    JSONObject(p(ctx).getString("mutedMap", "{}") ?: "{}")
-  } catch (e: Exception) {
-    JSONObject()
-  }
-
-  fun addMuted(ctx: Context, pkg: String, appName: String) {
-    val map = mutedMap(ctx)
-    map.put(pkg, appName)
-    p(ctx).edit().putString("mutedMap", map.toString()).apply()
-  }
-
-  fun removeMuted(ctx: Context, pkg: String) {
-    val map = mutedMap(ctx)
-    map.remove(pkg)
-    // also drop it from the legacy StringSet, if present
-    val legacy = HashSet(p(ctx).getStringSet("muted", HashSet()) ?: HashSet())
-    val hadLegacy = legacy.remove(pkg)
-    val editor = p(ctx).edit().putString("mutedMap", map.toString())
-    if (hadLegacy) editor.putStringSet("muted", legacy)
-    editor.apply()
-  }
-
-  fun isMuted(ctx: Context, pkg: String): Boolean {
-    if (mutedMap(ctx).has(pkg)) return true
-    val set = p(ctx).getStringSet("muted", HashSet()) ?: HashSet()
-    return set.contains(pkg)
-  }
-
   /* ---- temporary "you may proceed" grace ----
    * After the user waits out the countdown and chooses to continue, we can let
    * them use that app for a while without re-reminding. Stored as { packageName:
@@ -176,40 +142,4 @@ object Prefs {
 
   fun isWithinGrace(ctx: Context, pkg: String): Boolean =
     graceMap(ctx).optLong(pkg, 0L) > System.currentTimeMillis()
-
-  /* ---- "don't show again today" snooze ----
-   * A single global timestamp; while now < it, no reminder shows for any app.
-   * Set to tomorrow's local midnight from the pop-up's "Don't show again today". */
-
-  fun setSnoozeUntil(ctx: Context, untilMillis: Long) {
-    p(ctx).edit().putLong("snoozeUntil", untilMillis).apply()
-  }
-
-  fun isSnoozed(ctx: Context): Boolean =
-    p(ctx).getLong("snoozeUntil", 0L) > System.currentTimeMillis()
-
-  /** All muted apps as JSON array [{packageName, appName}]. */
-  fun getMutedJson(ctx: Context): String {
-    val map = mutedMap(ctx)
-    val arr = JSONArray()
-    val keys = map.keys()
-    while (keys.hasNext()) {
-      val k = keys.next()
-      val o = JSONObject()
-      o.put("packageName", k)
-      o.put("appName", map.optString(k, k))
-      arr.put(o)
-    }
-    // include any legacy entries not already represented in the map
-    val set = p(ctx).getStringSet("muted", HashSet()) ?: HashSet()
-    for (pkg in set) {
-      if (!map.has(pkg)) {
-        val o = JSONObject()
-        o.put("packageName", pkg)
-        o.put("appName", pkg)
-        arr.put(o)
-      }
-    }
-    return arr.toString()
-  }
 }

@@ -57,11 +57,3 @@ export function consumeLaunchTriggerJson(): string {
 export function getInstalledAppsJson(): string {
   return nativeModule?.getInstalledAppsJson() ?? '[]';
 }
-
-export function getMutedAppsJson(): string {
-  return nativeModule?.getMutedAppsJson() ?? '[]';
-}
-
-export function unmuteApp(packageName: string): void {
-  nativeModule?.unmuteApp(packageName);
-}

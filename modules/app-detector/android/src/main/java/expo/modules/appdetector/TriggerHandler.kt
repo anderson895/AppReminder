@@ -6,8 +6,8 @@ import org.json.JSONObject
 
 /**
  * Shared logic that turns a "this package came to the foreground" signal into a
- * decision: log the open, and — for an un-muted trigger app that isn't within
- * its post-continue grace — tell the caller to show the reminder.
+ * decision: log the open, and — for a trigger app that isn't within its
+ * post-continue grace — tell the caller to show the reminder.
  *
  * Used by the UsageStats poller ([AppMonitorService]). Its dedupe state is a
  * process-global object singleton so the same open never double-fires.
@@ -22,8 +22,8 @@ object TriggerHandler {
 
   /**
    * Evaluate a foreground package. Returns a [Block] when the caller should show
-   * the reminder, or null (non-trigger, muted, within grace, ignored, or a
-   * debounced duplicate). Logs the open as a side effect.
+   * the reminder, or null (non-trigger, within grace, ignored, or a debounced
+   * duplicate). Logs the open as a side effect.
    */
   @Synchronized
   fun evaluate(ctx: Context, pkg: String): Block? {
@@ -70,15 +70,6 @@ object TriggerHandler {
 
     if (!isTrigger) {
       Prefs.addPending(ctx, pkg, appName, category, false, "opened")
-      return null
-    }
-    if (Prefs.isMuted(ctx, pkg)) {
-      Prefs.addPending(ctx, pkg, appName, category, true, "opened")
-      return null
-    }
-    if (Prefs.isSnoozed(ctx)) {
-      // "Don't show again today" is active — log the open but don't remind.
-      Prefs.addPending(ctx, pkg, appName, category, true, "opened")
       return null
     }
     if (Prefs.isWithinGrace(ctx, pkg)) {

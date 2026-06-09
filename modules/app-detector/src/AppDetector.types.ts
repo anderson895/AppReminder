@@ -16,6 +16,4 @@ export interface AppDetectorNativeModule {
   clearPendingOpens(): void;
   consumeLaunchTriggerJson(): string;
   getInstalledAppsJson(): string;
-  getMutedAppsJson(): string;
-  unmuteApp(packageName: string): void;
 }
