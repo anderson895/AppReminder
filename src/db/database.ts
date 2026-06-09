@@ -687,6 +687,17 @@ export async function getStats(userId: number): Promise<Stats> {
     [userId]
   );
   const map = new Map(logs.map((l) => [l.day, l.gambling_count]));
+
+  // Cap the streak at the account's signup day — you can't be bet-free before
+  // you started using the app. Without this, days with no log default to 0
+  // gambling and every prior day (up to a year) counts as bet-free, so a brand
+  // new account immediately shows a misleadingly large, fixed-looking number.
+  const userRow = await db.getFirstAsync<{ created_at: string }>(
+    'SELECT created_at FROM users WHERE id = ?',
+    [userId]
+  );
+  const signupKey = userRow ? todayKey(new Date(userRow.created_at)) : todayKey();
+
   let streak = 0;
   const cursor = new Date();
   for (let i = 0; i < 365; i += 1) {
@@ -694,6 +705,7 @@ export async function getStats(userId: number): Promise<Stats> {
     const count = map.get(key) ?? 0;
     if (count > 0) break;
     streak += 1;
+    if (key === signupKey) break; // reached the signup day — stop counting
     cursor.setDate(cursor.getDate() - 1);
   }
 

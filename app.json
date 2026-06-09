@@ -53,12 +53,12 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "8900216c-b044-49a1-bc0e-5ce4cd709870"
+        "projectId": "5e07c7eb-1a3b-4a5d-ace4-2e9353dd64d6"
       }
     },
-    "owner": "padillajoshuaanderson.pdm",
     "runtimeVersion": {
       "policy": "appVersion"
-    }
+    },
+    "owner": "ardeleonpoultrysupplies"
   }
 }

@@ -6,9 +6,9 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-  <!-- Draws the reminder pop-up card on top of a watched app. A plain overlay
-       window (not an Activity), so it needs no Background-Activity-Launch
-       exemption and — unlike an accessibility service — does not trip Play
+  <!-- Holding SYSTEM_ALERT_WINDOW grants the background-activity-launch exemption
+       the service needs to bring up the full-screen ReminderActivity over the
+       watched app. Unlike an accessibility service it does not trip Play
        Protect's install block. -->
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
@@ -33,5 +33,20 @@
         android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
         android:value="Responsible-gambling app-usage reminder" />
     </service>
+
+    <!-- The full-screen "friction" reminder. Launched over a watched app instead
+         of overlaying it. Its own task (empty taskAffinity), kept out of Recents,
+         portrait-locked, and translucent so the dark scrim reads correctly. -->
+    <activity
+      android:name="expo.modules.appdetector.ReminderActivity"
+      android:enabled="true"
+      android:exported="false"
+      android:launchMode="singleTask"
+      android:taskAffinity=""
+      android:excludeFromRecents="true"
+      android:noHistory="true"
+      android:screenOrientation="portrait"
+      android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+      android:theme="@android:style/Theme.Material.NoActionBar" />
   </application>
 </manifest>
