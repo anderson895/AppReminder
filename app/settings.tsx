@@ -147,6 +147,12 @@ export default function Settings() {
       countdown_seconds: countdown,
       motivation_photo: serializePhotos(photos),
     });
+    // Push the new message/countdown/photos straight into the native reminder
+    // service — otherwise it keeps the old config until the next dashboard
+    // sync and the change looks like it "didn't save".
+    if (detectionAvailable && monitoringOn) {
+      configureReminder(member.trim() || 'mama', message.trim(), countdown, photos);
+    }
     setSaved(true);
   };
 

@@ -251,10 +251,9 @@ export async function updateSettings(
     countdown_seconds: number;
     motivation_photo?: string;
   }
-): Promise<UserSettings> {
-  await getSettings(userId); // ensure the doc exists
-  const ref = doc(userSettingsCol, userId);
+): Promise<void> {
   const data: Record<string, unknown> = {
+    user_id: userId,
     family_member: patch.family_member,
     family_message: patch.family_message,
     countdown_seconds: patch.countdown_seconds,
@@ -262,8 +261,9 @@ export async function updateSettings(
   if (patch.motivation_photo !== undefined) {
     data.motivation_photo = patch.motivation_photo;
   }
-  await updateDoc(ref, data);
-  return getSettings(userId);
+  // setDoc+merge upserts in ONE round-trip (no ensure-exists read first) so
+  // saving settings feels instant even on a slow connection.
+  await setDoc(doc(userSettingsCol, userId), data, { merge: true });
 }
 
 /** Save just the friction-popup photo uri (used by the setup-motivation step). */
@@ -271,18 +271,22 @@ export async function setMotivationPhoto(
   userId: string,
   uri: string
 ): Promise<void> {
-  await getSettings(userId); // ensure the doc exists
-  await updateDoc(doc(userSettingsCol, userId), { motivation_photo: uri });
+  await setDoc(
+    doc(userSettingsCol, userId),
+    { user_id: userId, motivation_photo: uri },
+    { merge: true }
+  );
 }
 
 export async function setMonitoringGranted(
   userId: string,
   granted: boolean
 ): Promise<void> {
-  await getSettings(userId); // ensure the doc exists
-  await updateDoc(doc(userSettingsCol, userId), {
-    monitoring_granted: granted ? 1 : 0,
-  });
+  await setDoc(
+    doc(userSettingsCol, userId),
+    { user_id: userId, monitoring_granted: granted ? 1 : 0 },
+    { merge: true }
+  );
 }
 
 /* --------------------- trigger apps (global, admin) ---------------- */
