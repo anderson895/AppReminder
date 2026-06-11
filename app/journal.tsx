@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
+import { navOnce } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getDailyLogs, getRecentEvents, todayKey } from '../src/db/database';
 import type { DailyLog, AccessEvent, EventAction } from '../src/types';
@@ -72,7 +73,7 @@ export default function Journal() {
           icon="arrow-left"
           size={22}
           iconColor={colors.text}
-          onPress={() => router.back()}
+          onPress={() => navOnce(() => router.back())}
         />
         <Text style={styles.title}>Activity Logs</Text>
         <View style={{ width: 40 }} />

@@ -15,7 +15,7 @@ import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
-import { PrimaryButton } from '../src/components/ui';
+import { PrimaryButton, navOnce } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { addSuggestion, getUserSuggestions, getTriggerApps } from '../src/db/database';
 import {
@@ -180,7 +180,7 @@ export default function SuggestApp() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <IconButton icon="arrow-left" size={22} iconColor={colors.text} onPress={() => router.back()} />
+        <IconButton icon="arrow-left" size={22} iconColor={colors.text} onPress={() => navOnce(() => router.back())} />
         <Text style={styles.title}>Suggest an App</Text>
         <View style={{ width: 40 }} />
       </View>

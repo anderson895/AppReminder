@@ -8,7 +8,7 @@ import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { parsePhotos } from '../src/photos';
-import { OutlineButton, StatTile } from '../src/components/ui';
+import { OutlineButton, StatTile, navOnce } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import {
   getStats,
@@ -177,7 +177,7 @@ export default function Dashboard() {
           icon="cog-outline"
           size={22}
           iconColor={colors.textMuted}
-          onPress={() => router.push('/settings')}
+          onPress={() => navOnce(() => router.push('/settings'))}
           style={styles.gear}
         />
       </View>
@@ -187,7 +187,7 @@ export default function Dashboard() {
         {!monitoringOn && (
           <Pressable
             style={styles.banner}
-            onPress={() => router.push('/permission')}
+            onPress={() => navOnce(() => router.push('/permission'))}
             android_ripple={{ color: 'rgba(0,0,0,0.12)', borderless: false }}
             accessibilityRole="button"
           >
@@ -235,7 +235,7 @@ export default function Dashboard() {
         {/* Suggest an app to block (goes to admin for review) */}
         <Pressable
           style={styles.suggestRow}
-          onPress={() => router.push('/suggest-app')}
+          onPress={() => navOnce(() => router.push('/suggest-app'))}
           android_ripple={{ color: 'rgba(255,255,255,0.08)', borderless: false }}
           accessibilityRole="button"
         >

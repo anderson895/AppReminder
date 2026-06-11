@@ -17,9 +17,9 @@ import { useRouter, useLocalSearchParams, Redirect } from 'expo-router';
 
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
-import { PrimaryButton } from '../src/components/ui';
+import { PrimaryButton, navOnce } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
-import { addTriggerApp, updateTriggerApp } from '../src/db/database';
+import { addTriggerApp, updateTriggerApp, getTriggerApps } from '../src/db/database';
 import {
   getInstalledApps,
   detectionAvailable,
@@ -42,10 +42,12 @@ function useStyles() {
 const AppRow = React.memo(function AppRow({
   item,
   selected,
+  added,
   onPick,
 }: {
   item: InstalledApp;
   selected: boolean;
+  added: boolean;
   onPick: (a: InstalledApp) => void;
 }) {
   const { colors } = useTheme();
@@ -58,18 +60,20 @@ const AppRow = React.memo(function AppRow({
     <Pressable
       onPress={() => onPick(item)}
       android_ripple={{ color: 'rgba(47,227,168,0.18)' }}
-      style={[styles.appRow, selected && styles.appRowSelected]}
+      style={[styles.appRow, selected && styles.appRowSelected, added && styles.appRowAdded]}
       collapsable={false}
+      disabled={added}
     >
       <MaterialCommunityIcons
-        name={selected ? 'check-circle' : 'cellphone'}
+        name={added ? 'shield-check' : selected ? 'check-circle' : 'cellphone'}
         size={22}
-        color={selected ? colors.teal : colors.textMuted}
+        color={added ? colors.success : selected ? colors.teal : colors.textMuted}
       />
       <View style={{ flex: 1, marginLeft: spacing(1.5) }} collapsable={false}>
         <Text style={styles.appLabel}>{item.label}</Text>
         <Text style={styles.appPkg}>{item.packageName}</Text>
       </View>
+      {added && <Text style={styles.addedTag}>already added</Text>}
     </Pressable>
   );
 });
@@ -96,6 +100,11 @@ export default function TriggerEdit() {
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // Package names + app names already on the global list so the picker can
+  // gray them out — the admin can't add the same app twice.
+  const [addedKeys, setAddedKeys] = useState<Set<string>>(new Set());
 
   // Load installed apps AFTER the screen transition so it shows instantly with
   // a loader instead of freezing on the (potentially slow) native call.
@@ -106,6 +115,27 @@ export default function TriggerEdit() {
     });
     return () => task.cancel();
   }, []);
+
+  useEffect(() => {
+    getTriggerApps()
+      .then((list) => {
+        const keys = new Set<string>();
+        for (const t of list) {
+          if (t.id === editingId) continue; // the entry being edited isn't a dupe of itself
+          if (t.package_name.trim()) keys.add(t.package_name.trim().toLowerCase());
+          keys.add(t.app_name.trim().toLowerCase());
+        }
+        setAddedKeys(keys);
+      })
+      .catch(() => {});
+  }, [editingId]);
+
+  const isAdded = useCallback(
+    (a: InstalledApp) =>
+      addedKeys.has(a.packageName.trim().toLowerCase()) ||
+      addedKeys.has(a.label.trim().toLowerCase()),
+    [addedKeys]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -126,16 +156,24 @@ export default function TriggerEdit() {
   if (!admin) return <Redirect href="/login" />;
 
   const onSave = async () => {
+    if (busy) return;
     if (!name.trim()) {
       setError('Please enter an app name or pick one below.');
       return;
     }
-    if (editingId) {
-      await updateTriggerApp(editingId, name.trim(), category, pkg.trim());
-    } else {
-      await addTriggerApp(name.trim(), category, pkg.trim());
+    setBusy(true);
+    try {
+      const ok = editingId
+        ? await updateTriggerApp(editingId, name.trim(), category, pkg.trim())
+        : await addTriggerApp(name.trim(), category, pkg.trim());
+      if (!ok) {
+        setError('That app is already in the trigger list — it can’t be added twice.');
+        return;
+      }
+      router.back();
+    } finally {
+      setBusy(false);
     }
-    router.back();
   };
 
   const inputProps = {
@@ -153,7 +191,7 @@ export default function TriggerEdit() {
           icon="arrow-left"
           size={22}
           iconColor={colors.text}
-          onPress={() => router.back()}
+          onPress={() => navOnce(() => router.back())}
         />
         <Text style={styles.title}>
           {editingId ? 'Edit Trigger App' : 'Add Trigger App'}
@@ -189,8 +227,9 @@ export default function TriggerEdit() {
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <PrimaryButton
-            label={editingId ? 'Save' : 'Add App'}
+            label={busy ? 'Saving…' : editingId ? 'Save' : 'Add App'}
             onPress={onSave}
+            disabled={busy}
             style={{ marginTop: spacing(1.5) }}
           />
 
@@ -230,6 +269,7 @@ export default function TriggerEdit() {
                   key={item.packageName}
                   item={item}
                   selected={item.packageName === pkg}
+                  added={isAdded(item)}
                   onPick={pick}
                 />
               ))
@@ -290,6 +330,13 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     borderColor: 'transparent',
   },
   appRowSelected: { borderColor: colors.teal },
+  appRowAdded: { opacity: 0.55 },
   appLabel: { color: colors.text, fontSize: 15, fontWeight: '600' },
   appPkg: { color: colors.textFaint, fontSize: 12, marginTop: 1 },
+  addedTag: {
+    color: colors.success,
+    fontSize: 11,
+    fontWeight: '700',
+    marginLeft: spacing(1),
+  },
 });

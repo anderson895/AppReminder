@@ -313,11 +313,37 @@ export function subscribeEnabledTriggerApps(
   );
 }
 
+/**
+ * Find an entry already covering this app — same package name (when both have
+ * one) or same app name, case-insensitive. `excludeId` skips the entry being
+ * edited so it doesn't count as its own duplicate.
+ */
+export async function findDuplicateTriggerApp(
+  appName: string,
+  packageName = '',
+  excludeId?: string
+): Promise<TriggerApp | null> {
+  const name = appName.trim().toLowerCase();
+  const pkg = packageName.trim().toLowerCase();
+  const apps = await getTriggerApps();
+  return (
+    apps.find(
+      (a) =>
+        a.id !== excludeId &&
+        ((pkg.length > 0 && a.package_name.trim().toLowerCase() === pkg) ||
+          a.app_name.trim().toLowerCase() === name)
+    ) ?? null
+  );
+}
+
+/** Add an app to the global list. Returns false (and adds nothing) if an entry
+ *  for the same app already exists — the admin can't double-add. */
 export async function addTriggerApp(
   appName: string,
   category: Category,
   packageName = ''
-): Promise<void> {
+): Promise<boolean> {
+  if (await findDuplicateTriggerApp(appName, packageName)) return false;
   await addDoc(triggerAppsCol, {
     app_name: appName.trim(),
     package_name: packageName.trim(),
@@ -325,19 +351,24 @@ export async function addTriggerApp(
     enabled: 1,
     created_at: new Date().toISOString(),
   });
+  return true;
 }
 
+/** Edit an entry. Returns false if the new name/package collides with another
+ *  existing entry. */
 export async function updateTriggerApp(
   id: string,
   appName: string,
   category: Category,
   packageName = ''
-): Promise<void> {
+): Promise<boolean> {
+  if (await findDuplicateTriggerApp(appName, packageName, id)) return false;
   await updateDoc(doc(triggerAppsCol, id), {
     app_name: appName.trim(),
     package_name: packageName.trim(),
     category,
   });
+  return true;
 }
 
 export async function deleteTriggerApp(id: string): Promise<void> {
@@ -428,13 +459,16 @@ export async function countPendingSuggestions(): Promise<number> {
   return snap.data().count;
 }
 
-/** Approve a suggestion: copy it into the global trigger list, mark approved. */
+/** Approve a suggestion: copy it into the global trigger list, mark approved.
+ *  If the app is already on the list (e.g. two users suggested it, or the
+ *  admin added it manually), nothing is duplicated — the suggestion is simply
+ *  marked approved, since the app IS being blocked. */
 export async function approveSuggestion(id: string): Promise<void> {
   const ref = doc(suggestionsCol, id);
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
   const s = snap.data() as AppSuggestion;
-  await addTriggerApp(s.app_name, s.category, s.package_name);
+  await addTriggerApp(s.app_name, s.category, s.package_name); // no-op when already listed
   await updateDoc(ref, { status: 'approved' });
 }
 

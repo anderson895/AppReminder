@@ -27,7 +27,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { radius, spacing, type Palette, type ThemeMode } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { parsePhotos, serializePhotos } from '../src/photos';
-import { PrimaryButton, OutlineButton } from '../src/components/ui';
+import { PrimaryButton, OutlineButton, navOnce } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import {
   getSettings,
@@ -200,7 +200,7 @@ export default function Settings() {
           icon="arrow-left"
           size={22}
           iconColor={colors.text}
-          onPress={() => router.back()}
+          onPress={() => navOnce(() => router.back())}
         />
         <Text style={styles.title}>Settings</Text>
         <View style={{ width: 40 }} />

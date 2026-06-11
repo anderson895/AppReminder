@@ -64,6 +64,32 @@ function useButtonMetrics() {
 
 const RIPPLE = { color: 'rgba(0,0,0,0.12)', borderless: false } as const;
 
+/**
+ * Global guard against double-fired navigations: when the phone responds
+ * slowly, users tap again and the same screen opens twice (or more). Wrap any
+ * screen-opening onPress in navOnce — taps within `delay` ms of the last
+ * accepted navigation are swallowed, app-wide.
+ */
+let lastNavAt = 0;
+export function navOnce(fn: () => void, delay = 900): void {
+  const now = Date.now();
+  if (now - lastNavAt < delay) return;
+  lastNavAt = now;
+  fn();
+}
+
+/** Per-button repeat-tap guard: ignores presses fired within `delay` ms. */
+function useGuardedPress(onPress: () => void, delay = 900): () => void {
+  const last = useRef(0);
+  return useCallback(() => {
+    const now = Date.now();
+    if (now - last.current < delay) return;
+    last.current = now;
+    if (Platform.OS !== 'web') tap();
+    onPress();
+  }, [onPress, delay]);
+}
+
 interface ButtonProps {
   label: string;
   onPress: () => void;
@@ -76,10 +102,7 @@ export function PrimaryButton({ label, onPress, style, disabled }: ButtonProps) 
   const styles = useStyles();
   const { scale, pressIn, pressOut } = usePressScale();
   const m = useButtonMetrics();
-  const handlePress = useCallback(() => {
-    if (Platform.OS !== 'web') tap();
-    onPress();
-  }, [onPress]);
+  const handlePress = useGuardedPress(onPress);
 
   return (
     <AnimatedPressable
@@ -114,10 +137,7 @@ export function OutlineButton({ label, onPress, style, disabled }: ButtonProps) 
   const styles = useStyles();
   const { scale, pressIn, pressOut } = usePressScale();
   const m = useButtonMetrics();
-  const handlePress = useCallback(() => {
-    if (Platform.OS !== 'web') tap();
-    onPress();
-  }, [onPress]);
+  const handlePress = useGuardedPress(onPress);
 
   return (
     <AnimatedPressable
