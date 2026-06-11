@@ -14,6 +14,7 @@ import {
   getStats,
   getSettings,
   getEnabledTriggerApps,
+  subscribeEnabledTriggerApps,
   recordEvent,
   getUnnotifiedSuggestions,
   markSuggestionsNotified,
@@ -40,7 +41,7 @@ export default function Dashboard() {
   // Drain the native monitor's buffer into the activity logs, (re)start the
   // service with the latest trigger list, and surface any pending reminder.
   const syncDetection = useCallback(
-    async (userId: number) => {
+    async (userId: string) => {
       if (!detectionAvailable) return;
       const settings = await getSettings(userId);
       if (!settings.monitoring_granted) return;
@@ -78,7 +79,7 @@ export default function Dashboard() {
     [router]
   );
 
-  const refresh = useCallback((userId: number) => {
+  const refresh = useCallback((userId: string) => {
     getStats(userId).then(setStats);
   }, []);
 
@@ -143,6 +144,21 @@ export default function Dashboard() {
     });
     return () => sub.remove();
   }, [user, syncDetection, refresh]);
+
+  // Online sync: whenever the admin edits the global trigger list — from any
+  // device — Firestore pushes the change here and we re-arm the native monitor
+  // immediately, without waiting for the next app open.
+  useEffect(() => {
+    if (!user || !detectionAvailable) return;
+    const unsubscribe = subscribeEnabledTriggerApps((apps) => {
+      getSettings(user.id)
+        .then((s) => {
+          if (s.monitoring_granted) startMonitoring(apps);
+        })
+        .catch(() => {});
+    });
+    return () => unsubscribe();
+  }, [user]);
 
   if (!user) return <Redirect href="/login" />;
 

@@ -1,4 +1,27 @@
-import * as SQLite from 'expo-sqlite';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  getCountFromServer,
+  getAggregateFromServer,
+  sum,
+  addDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  increment,
+  query,
+  where,
+  orderBy,
+  limit as qLimit,
+  onSnapshot,
+  writeBatch,
+  type DocumentData,
+  type QueryDocumentSnapshot,
+  type Unsubscribe,
+} from 'firebase/firestore';
+import { db } from './firebase';
 import type {
   User,
   Admin,
@@ -16,195 +39,72 @@ import type {
 } from '../types';
 
 /**
- * BetFree local database (SQLite via expo-sqlite, async API).
+ * BetFree online database (Cloud Firestore).
  *
- * Tables
- *  - users          : account credentials + profile
+ * Every device shares the same backend, so whatever the admin sets as a
+ * trigger app reflects on all installed devices, and user suggestions reach
+ * the admin no matter which phone they were sent from.
+ *
+ * Collections
+ *  - users           : account credentials + profile
  *  - admins          : separate admin accounts (manage the global trigger list)
  *  - trigger_apps    : GLOBAL master list of watched apps (admin-managed)
  *  - access_events   : every detected access attempt (the audit trail)
- *  - daily_logs      : per-day rollup; gambling_count increments +1 per attempt
- *  - user_settings   : friction-popup message + countdown configuration
+ *  - daily_logs      : per-day rollup; doc id `${userId}_${day}`
+ *  - user_settings   : friction-popup message + countdown config; doc id = userId
+ *  - app_suggestions : user-submitted apps-to-block awaiting admin review
  */
 
-let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+const usersCol = collection(db, 'users');
+const adminsCol = collection(db, 'admins');
+const triggerAppsCol = collection(db, 'trigger_apps');
+const accessEventsCol = collection(db, 'access_events');
+const dailyLogsCol = collection(db, 'daily_logs');
+const userSettingsCol = collection(db, 'user_settings');
+const suggestionsCol = collection(db, 'app_suggestions');
 
-function getDb(): Promise<SQLite.SQLiteDatabase> {
-  if (!dbPromise) {
-    dbPromise = SQLite.openDatabaseAsync('safewallet.db');
-  }
-  return dbPromise;
+/** Map a Firestore snapshot to a typed row with its document id. */
+function withId<T>(snap: QueryDocumentSnapshot<DocumentData>): T {
+  return { id: snap.id, ...snap.data() } as T;
 }
 
+/**
+ * Seed the default admin account and trigger-app list once. Deterministic doc
+ * ids keep concurrent first-runs on several devices from duplicating seeds.
+ * Never throws — a device that starts offline simply skips seeding (another
+ * device, or the next online start, will do it).
+ */
 export async function initDatabase(): Promise<void> {
-  const db = await getDb();
-  await db.execAsync('PRAGMA journal_mode = WAL;');
-  await db.execAsync('PRAGMA foreign_keys = ON;');
-
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS admins (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS trigger_apps (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      app_name TEXT NOT NULL,
-      package_name TEXT NOT NULL DEFAULT '',
-      category TEXT NOT NULL,           -- 'gambling' | 'financial'
-      enabled INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS access_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      app_name TEXT NOT NULL,
-      category TEXT NOT NULL,           -- 'gambling' | 'financial' | 'other'
-      action TEXT NOT NULL,             -- 'resisted' | 'proceeded' | 'opened'
-      day TEXT NOT NULL,                -- YYYY-MM-DD
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS daily_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      day TEXT NOT NULL,                -- YYYY-MM-DD
-      gambling_count INTEGER NOT NULL DEFAULT 0,
-      resisted_count INTEGER NOT NULL DEFAULT 0,
-      UNIQUE (user_id, day),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS user_settings (
-      user_id INTEGER PRIMARY KEY,
-      family_member TEXT NOT NULL DEFAULT 'mama',
-      family_message TEXT NOT NULL DEFAULT 'Anak, we believe in you. Every day you choose us over gambling, you give us our future back.',
-      countdown_seconds INTEGER NOT NULL DEFAULT 900,
-      monitoring_granted INTEGER NOT NULL DEFAULT 0,
-      motivation_photo TEXT NOT NULL DEFAULT '',  -- local uri of the photo shown on the friction popup
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    -- User-submitted suggestions for apps to block. The admin reviews each
-    -- (pending -> approved/rejected); approving copies it into trigger_apps.
-    CREATE TABLE IF NOT EXISTS app_suggestions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      app_name TEXT NOT NULL,
-      package_name TEXT NOT NULL DEFAULT '',
-      category TEXT NOT NULL,            -- 'gambling' | 'financial'
-      status TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'approved' | 'rejected'
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-  `);
-
-  await migrate(db);
-  await seedDefaults(db);
-}
-
-/** Schema migrations to keep databases from older versions tidy. */
-async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
-  const cols = await db.getAllAsync<{ name: string }>(
-    'PRAGMA table_info(user_settings)'
-  );
-  const hasCol = (name: string) => cols.some((c) => c.name === name);
-
-  // Add the monitoring-consent flag if missing.
-  if (!hasCol('monitoring_granted')) {
-    await db.runAsync(
-      'ALTER TABLE user_settings ADD COLUMN monitoring_granted INTEGER NOT NULL DEFAULT 0'
-    );
-  }
-
-  // Add the friction-popup photo uri if missing.
-  if (!hasCol('motivation_photo')) {
-    await db.runAsync(
-      "ALTER TABLE user_settings ADD COLUMN motivation_photo TEXT NOT NULL DEFAULT ''"
-    );
-  }
-
-  // Pause length is now 15 or 30 minutes — bump old short values (seconds).
-  await db.runAsync(
-    'UPDATE user_settings SET countdown_seconds = 900 WHERE countdown_seconds < 900'
-  );
-
-  // Drop the unused per-user app table (replaced by the global trigger_apps).
-  await db.runAsync('DROP TABLE IF EXISTS monitored_apps');
-
-  // Add package_name to trigger_apps if missing (needed for native detection).
-  const triggerCols = await db.getAllAsync<{ name: string }>(
-    'PRAGMA table_info(trigger_apps)'
-  );
-  if (!triggerCols.some((c) => c.name === 'package_name')) {
-    await db.runAsync(
-      "ALTER TABLE trigger_apps ADD COLUMN package_name TEXT NOT NULL DEFAULT ''"
-    );
-  }
-
-  // Drop the unused avg_amount column (tied to the removed "money not gambled").
-  if (hasCol('avg_amount')) {
-    try {
-      await db.runAsync('ALTER TABLE user_settings DROP COLUMN avg_amount');
-    } catch {
-      // Older SQLite without DROP COLUMN support — leave it; it is harmless.
+  const seed = (async () => {
+    const adminCount = await getCountFromServer(adminsCol);
+    if (adminCount.data().count === 0) {
+      await setDoc(doc(adminsCol, 'default-admin'), {
+        name: 'Administrator',
+        email: 'admin@gmail.com',
+        password: 'admin123',
+        created_at: new Date().toISOString(),
+      });
     }
-  }
 
-  // Add the "user has been told this suggestion was resolved" flag if missing,
-  // so we can notify them once when the admin approves/rejects their suggestion.
-  const suggestionCols = await db.getAllAsync<{ name: string }>(
-    'PRAGMA table_info(app_suggestions)'
-  );
-  if (!suggestionCols.some((c) => c.name === 'notified')) {
-    await db.runAsync(
-      'ALTER TABLE app_suggestions ADD COLUMN notified INTEGER NOT NULL DEFAULT 0'
-    );
-    // Existing already-resolved suggestions predate this feature — treat them as
-    // already seen so we don't notify retroactively.
-    await db.runAsync(
-      "UPDATE app_suggestions SET notified = 1 WHERE status != 'pending'"
-    );
-  }
-}
-
-/** Seed the default admin account and the global trigger-app list once. */
-async function seedDefaults(db: SQLite.SQLiteDatabase): Promise<void> {
-  const adminCount = await db.getFirstAsync<{ c: number }>(
-    'SELECT COUNT(*) AS c FROM admins'
-  );
-  if ((adminCount?.c ?? 0) === 0) {
-    await db.runAsync(
-      'INSERT INTO admins (name, email, password, created_at) VALUES (?, ?, ?, ?)',
-      ['Administrator', 'admin@gmail.com', 'admin123', new Date().toISOString()]
-    );
-  }
-
-  const appCount = await db.getFirstAsync<{ c: number }>(
-    'SELECT COUNT(*) AS c FROM trigger_apps'
-  );
-  if ((appCount?.c ?? 0) === 0) {
-    const now = new Date().toISOString();
-    for (const app of DEFAULT_APPS) {
-      await db.runAsync(
-        'INSERT INTO trigger_apps (app_name, package_name, category, enabled, created_at) VALUES (?, ?, ?, 1, ?)',
-        [app.app_name, app.package_name, app.category, now]
-      );
+    const appCount = await getCountFromServer(triggerAppsCol);
+    if (appCount.data().count === 0) {
+      const now = new Date().toISOString();
+      const batch = writeBatch(db);
+      DEFAULT_APPS.forEach((app, i) => {
+        batch.set(doc(triggerAppsCol, `seed-${i}`), {
+          app_name: app.app_name,
+          package_name: app.package_name,
+          category: app.category,
+          enabled: 1,
+          created_at: now,
+        });
+      });
+      await batch.commit();
     }
-  }
+  })();
+
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, 8000));
+  await Promise.race([seed.catch(() => {}), timeout]);
 }
 
 /* ----------------------------- helpers ----------------------------- */
@@ -244,6 +144,14 @@ const DEFAULT_APPS: ReadonlyArray<{
   { app_name: 'Casino Maxx', package_name: '', category: 'gambling' },
 ];
 
+/** Sort trigger apps the way the SQLite version did: gambling first, A→Z. */
+function sortTriggerApps(apps: TriggerApp[]): TriggerApp[] {
+  return apps.sort(
+    (a, b) =>
+      b.category.localeCompare(a.category) || a.app_name.localeCompare(b.app_name)
+  );
+}
+
 /* ------------------------------ auth ------------------------------- */
 
 export async function createUser(input: {
@@ -251,43 +159,42 @@ export async function createUser(input: {
   email: string;
   password: string;
 }): Promise<User> {
-  const db = await getDb();
   const created = new Date().toISOString();
-  const result = await db.runAsync(
-    'INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, ?)',
-    [input.name.trim(), input.email.trim().toLowerCase(), input.password, created]
-  );
-  const userId = result.lastInsertRowId;
+  const data = {
+    name: input.name.trim(),
+    email: input.email.trim().toLowerCase(),
+    password: input.password,
+    created_at: created,
+  };
+  const ref = await addDoc(usersCol, data);
 
   // Seed per-user settings. The trigger-app list is global (admin-managed).
-  await db.runAsync('INSERT INTO user_settings (user_id) VALUES (?)', [userId]);
-  const user = await getUserById(userId);
-  if (!user) throw new Error('Failed to create user');
-  return user;
+  await setDoc(doc(userSettingsCol, ref.id), defaultSettings(ref.id));
+  return { id: ref.id, ...data };
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
-  const db = await getDb();
-  return db.getFirstAsync<User>('SELECT * FROM users WHERE email = ?', [
-    email.trim().toLowerCase(),
-  ]);
+  const snap = await getDocs(
+    query(usersCol, where('email', '==', email.trim().toLowerCase()), qLimit(1))
+  );
+  return snap.empty ? null : withId<User>(snap.docs[0]!);
 }
 
-export async function getUserById(id: number): Promise<User | null> {
-  const db = await getDb();
-  return db.getFirstAsync<User>('SELECT * FROM users WHERE id = ?', [id]);
+export async function getUserById(id: string): Promise<User | null> {
+  const snap = await getDoc(doc(usersCol, id));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as User) : null;
 }
 
 export async function getAdminByEmail(email: string): Promise<Admin | null> {
-  const db = await getDb();
-  return db.getFirstAsync<Admin>('SELECT * FROM admins WHERE email = ?', [
-    email.trim().toLowerCase(),
-  ]);
+  const snap = await getDocs(
+    query(adminsCol, where('email', '==', email.trim().toLowerCase()), qLimit(1))
+  );
+  return snap.empty ? null : withId<Admin>(snap.docs[0]!);
 }
 
-export async function getAdminById(id: number): Promise<Admin | null> {
-  const db = await getDb();
-  return db.getFirstAsync<Admin>('SELECT * FROM admins WHERE id = ?', [id]);
+export async function getAdminById(id: string): Promise<Admin | null> {
+  const snap = await getDoc(doc(adminsCol, id));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as Admin) : null;
 }
 
 /**
@@ -312,25 +219,32 @@ export async function verifyLogin(
 
 /* ---------------------------- settings ----------------------------- */
 
-export async function getSettings(userId: number): Promise<UserSettings> {
-  const db = await getDb();
-  let row = await db.getFirstAsync<UserSettings>(
-    'SELECT * FROM user_settings WHERE user_id = ?',
-    [userId]
-  );
-  if (!row) {
-    await db.runAsync('INSERT INTO user_settings (user_id) VALUES (?)', [userId]);
-    row = await db.getFirstAsync<UserSettings>(
-      'SELECT * FROM user_settings WHERE user_id = ?',
-      [userId]
-    );
+function defaultSettings(userId: string): UserSettings {
+  return {
+    user_id: userId,
+    family_member: 'mama',
+    family_message:
+      'Anak, we believe in you. Every day you choose us over gambling, you give us our future back.',
+    countdown_seconds: 900,
+    monitoring_granted: 0,
+    motivation_photo: '',
+  };
+}
+
+export async function getSettings(userId: string): Promise<UserSettings> {
+  const ref = doc(userSettingsCol, userId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    const defaults = defaultSettings(userId);
+    await setDoc(ref, defaults);
+    return defaults;
   }
-  if (!row) throw new Error('Failed to load settings');
-  return row;
+  // Merge over defaults so docs written by older builds stay complete.
+  return { ...defaultSettings(userId), ...(snap.data() as Partial<UserSettings>) };
 }
 
 export async function updateSettings(
-  userId: number,
+  userId: string,
   patch: {
     family_member: string;
     family_message: string;
@@ -338,68 +252,64 @@ export async function updateSettings(
     motivation_photo?: string;
   }
 ): Promise<UserSettings> {
-  const db = await getDb();
+  await getSettings(userId); // ensure the doc exists
+  const ref = doc(userSettingsCol, userId);
+  const data: Record<string, unknown> = {
+    family_member: patch.family_member,
+    family_message: patch.family_message,
+    countdown_seconds: patch.countdown_seconds,
+  };
   if (patch.motivation_photo !== undefined) {
-    await db.runAsync(
-      `UPDATE user_settings
-         SET family_member = ?, family_message = ?, countdown_seconds = ?, motivation_photo = ?
-       WHERE user_id = ?`,
-      [
-        patch.family_member,
-        patch.family_message,
-        patch.countdown_seconds,
-        patch.motivation_photo,
-        userId,
-      ]
-    );
-  } else {
-    await db.runAsync(
-      `UPDATE user_settings
-         SET family_member = ?, family_message = ?, countdown_seconds = ?
-       WHERE user_id = ?`,
-      [patch.family_member, patch.family_message, patch.countdown_seconds, userId]
-    );
+    data.motivation_photo = patch.motivation_photo;
   }
+  await updateDoc(ref, data);
   return getSettings(userId);
 }
 
 /** Save just the friction-popup photo uri (used by the setup-motivation step). */
 export async function setMotivationPhoto(
-  userId: number,
+  userId: string,
   uri: string
 ): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    'UPDATE user_settings SET motivation_photo = ? WHERE user_id = ?',
-    [uri, userId]
-  );
+  await getSettings(userId); // ensure the doc exists
+  await updateDoc(doc(userSettingsCol, userId), { motivation_photo: uri });
 }
 
 export async function setMonitoringGranted(
-  userId: number,
+  userId: string,
   granted: boolean
 ): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    'UPDATE user_settings SET monitoring_granted = ? WHERE user_id = ?',
-    [granted ? 1 : 0, userId]
-  );
+  await getSettings(userId); // ensure the doc exists
+  await updateDoc(doc(userSettingsCol, userId), {
+    monitoring_granted: granted ? 1 : 0,
+  });
 }
 
 /* --------------------- trigger apps (global, admin) ---------------- */
 
 export async function getTriggerApps(): Promise<TriggerApp[]> {
-  const db = await getDb();
-  return db.getAllAsync<TriggerApp>(
-    'SELECT * FROM trigger_apps ORDER BY category DESC, app_name ASC'
-  );
+  const snap = await getDocs(triggerAppsCol);
+  return sortTriggerApps(snap.docs.map((d) => withId<TriggerApp>(d)));
 }
 
 /** Only the enabled apps — what the detector / user side actually watches. */
 export async function getEnabledTriggerApps(): Promise<TriggerApp[]> {
-  const db = await getDb();
-  return db.getAllAsync<TriggerApp>(
-    'SELECT * FROM trigger_apps WHERE enabled = 1 ORDER BY category DESC, app_name ASC'
+  const snap = await getDocs(query(triggerAppsCol, where('enabled', '==', 1)));
+  return sortTriggerApps(snap.docs.map((d) => withId<TriggerApp>(d)));
+}
+
+/**
+ * Live view of the enabled trigger apps. Fires immediately and again whenever
+ * the admin changes the list — on ANY device — so user phones re-arm the
+ * native monitor without reopening the app.
+ */
+export function subscribeEnabledTriggerApps(
+  onChange: (apps: TriggerApp[]) => void
+): Unsubscribe {
+  return onSnapshot(
+    query(triggerAppsCol, where('enabled', '==', 1)),
+    (snap) => onChange(sortTriggerApps(snap.docs.map((d) => withId<TriggerApp>(d)))),
+    () => {} // network errors: keep the last known list
   );
 }
 
@@ -408,164 +318,146 @@ export async function addTriggerApp(
   category: Category,
   packageName = ''
 ): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    'INSERT INTO trigger_apps (app_name, package_name, category, enabled, created_at) VALUES (?, ?, ?, 1, ?)',
-    [appName.trim(), packageName.trim(), category, new Date().toISOString()]
-  );
+  await addDoc(triggerAppsCol, {
+    app_name: appName.trim(),
+    package_name: packageName.trim(),
+    category,
+    enabled: 1,
+    created_at: new Date().toISOString(),
+  });
 }
 
 export async function updateTriggerApp(
-  id: number,
+  id: string,
   appName: string,
   category: Category,
   packageName = ''
 ): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    'UPDATE trigger_apps SET app_name = ?, package_name = ?, category = ? WHERE id = ?',
-    [appName.trim(), packageName.trim(), category, id]
-  );
+  await updateDoc(doc(triggerAppsCol, id), {
+    app_name: appName.trim(),
+    package_name: packageName.trim(),
+    category,
+  });
 }
 
-export async function deleteTriggerApp(id: number): Promise<void> {
-  const db = await getDb();
-  await db.runAsync('DELETE FROM trigger_apps WHERE id = ?', [id]);
+export async function deleteTriggerApp(id: string): Promise<void> {
+  await deleteDoc(doc(triggerAppsCol, id));
 }
 
-export async function toggleTriggerApp(id: number, enabled: boolean): Promise<void> {
-  const db = await getDb();
-  await db.runAsync('UPDATE trigger_apps SET enabled = ? WHERE id = ?', [
-    enabled ? 1 : 0,
-    id,
-  ]);
+export async function toggleTriggerApp(id: string, enabled: boolean): Promise<void> {
+  await updateDoc(doc(triggerAppsCol, id), { enabled: enabled ? 1 : 0 });
 }
 
 /** The enabled financial apps shown read-only on the main page as "blocked". */
 export async function getBlockedEwallets(): Promise<TriggerApp[]> {
-  const db = await getDb();
-  return db.getAllAsync<TriggerApp>(
-    "SELECT * FROM trigger_apps WHERE enabled = 1 AND category = 'financial' ORDER BY app_name ASC"
-  );
+  const apps = await getEnabledTriggerApps();
+  return apps.filter((a) => a.category === 'financial');
 }
 
 /** The enabled gambling/casino apps (PAGCOR list) shown read-only on the main page. */
 export async function getBlockedCasinos(): Promise<TriggerApp[]> {
-  const db = await getDb();
-  return db.getAllAsync<TriggerApp>(
-    "SELECT * FROM trigger_apps WHERE enabled = 1 AND category = 'gambling' ORDER BY app_name ASC"
-  );
+  const apps = await getEnabledTriggerApps();
+  return apps.filter((a) => a.category === 'gambling');
 }
 
 /* ----------------------- app suggestions (user) -------------------- */
 
-/** A user proposes an app to block; it waits for admin review. */
+/**
+ * A user proposes an app to block; it waits for admin review. The submitter's
+ * name/email are denormalized onto the doc so the admin queue can show them
+ * without a join.
+ */
 export async function addSuggestion(
-  userId: number,
+  userId: string,
   appName: string,
   category: Category,
   packageName = ''
 ): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    `INSERT INTO app_suggestions (user_id, app_name, package_name, category, status, created_at)
-     VALUES (?, ?, ?, ?, 'pending', ?)`,
-    [userId, appName.trim(), packageName.trim(), category, new Date().toISOString()]
-  );
+  const user = await getUserById(userId);
+  await addDoc(suggestionsCol, {
+    user_id: userId,
+    user_name: user?.name ?? 'Unknown',
+    user_email: user?.email ?? '',
+    app_name: appName.trim(),
+    package_name: packageName.trim(),
+    category,
+    status: 'pending',
+    notified: 0,
+    created_at: new Date().toISOString(),
+  });
 }
 
 /** A user's own suggestions (so they can see status), newest first. */
-export async function getUserSuggestions(userId: number): Promise<AppSuggestion[]> {
-  const db = await getDb();
-  return db.getAllAsync<AppSuggestion>(
-    'SELECT * FROM app_suggestions WHERE user_id = ? ORDER BY created_at DESC',
-    [userId]
-  );
+export async function getUserSuggestions(userId: string): Promise<AppSuggestion[]> {
+  const snap = await getDocs(query(suggestionsCol, where('user_id', '==', userId)));
+  return snap.docs
+    .map((d) => withId<AppSuggestion>(d))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 /** Resolved (approved/rejected) suggestions the user hasn't been notified of yet. */
-export async function getUnnotifiedSuggestions(userId: number): Promise<AppSuggestion[]> {
-  const db = await getDb();
-  return db.getAllAsync<AppSuggestion>(
-    "SELECT * FROM app_suggestions WHERE user_id = ? AND status != 'pending' AND notified = 0 ORDER BY created_at DESC",
-    [userId]
-  );
+export async function getUnnotifiedSuggestions(
+  userId: string
+): Promise<AppSuggestion[]> {
+  const mine = await getUserSuggestions(userId);
+  return mine.filter((s) => s.status !== 'pending' && !s.notified);
 }
 
 /** Mark suggestions as notified so the user isn't told about them again. */
-export async function markSuggestionsNotified(ids: number[]): Promise<void> {
+export async function markSuggestionsNotified(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
-  const db = await getDb();
-  const placeholders = ids.map(() => '?').join(',');
-  await db.runAsync(
-    `UPDATE app_suggestions SET notified = 1 WHERE id IN (${placeholders})`,
-    ids
-  );
+  const batch = writeBatch(db);
+  for (const id of ids) {
+    batch.update(doc(suggestionsCol, id), { notified: 1 });
+  }
+  await batch.commit();
 }
 
 /** All pending suggestions for the admin review queue, with the submitter name. */
 export async function getPendingSuggestions(): Promise<SuggestionWithUser[]> {
-  const db = await getDb();
-  return db.getAllAsync<SuggestionWithUser>(
-    `SELECT s.*, u.name AS user_name, u.email AS user_email
-       FROM app_suggestions s
-       JOIN users u ON u.id = s.user_id
-      WHERE s.status = 'pending'
-      ORDER BY s.created_at ASC`
-  );
+  const snap = await getDocs(query(suggestionsCol, where('status', '==', 'pending')));
+  return snap.docs
+    .map((d) => withId<SuggestionWithUser>(d))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 
 export async function countPendingSuggestions(): Promise<number> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<{ c: number }>(
-    "SELECT COUNT(*) AS c FROM app_suggestions WHERE status = 'pending'"
+  const snap = await getCountFromServer(
+    query(suggestionsCol, where('status', '==', 'pending'))
   );
-  return row?.c ?? 0;
+  return snap.data().count;
 }
 
 /** Approve a suggestion: copy it into the global trigger list, mark approved. */
-export async function approveSuggestion(id: number): Promise<void> {
-  const db = await getDb();
-  const s = await db.getFirstAsync<AppSuggestion>(
-    'SELECT * FROM app_suggestions WHERE id = ?',
-    [id]
-  );
-  if (!s) return;
-  await db.runAsync(
-    'INSERT INTO trigger_apps (app_name, package_name, category, enabled, created_at) VALUES (?, ?, ?, 1, ?)',
-    [s.app_name, s.package_name, s.category, new Date().toISOString()]
-  );
-  await db.runAsync("UPDATE app_suggestions SET status = 'approved' WHERE id = ?", [id]);
+export async function approveSuggestion(id: string): Promise<void> {
+  const ref = doc(suggestionsCol, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const s = snap.data() as AppSuggestion;
+  await addTriggerApp(s.app_name, s.category, s.package_name);
+  await updateDoc(ref, { status: 'approved' });
 }
 
-export async function rejectSuggestion(id: number): Promise<void> {
-  const db = await getDb();
-  await db.runAsync("UPDATE app_suggestions SET status = 'rejected' WHERE id = ?", [id]);
+export async function rejectSuggestion(id: string): Promise<void> {
+  await updateDoc(doc(suggestionsCol, id), { status: 'rejected' });
 }
 
 /* ----------------------------- admin stats ------------------------- */
 
 export async function getAdminStats(): Promise<AdminStats> {
-  const db = await getDb();
-  const users = await db.getFirstAsync<{ c: number }>(
-    'SELECT COUNT(*) AS c FROM users'
-  );
-  const apps = await db.getFirstAsync<{ c: number }>(
-    'SELECT COUNT(*) AS c FROM trigger_apps'
-  );
-  const totals = await db.getFirstAsync<{
-    g: number;
-    r: number;
-  }>(
-    `SELECT COALESCE(SUM(gambling_count), 0) AS g,
-            COALESCE(SUM(resisted_count), 0) AS r
-     FROM daily_logs`
-  );
+  const [users, apps, totals] = await Promise.all([
+    getCountFromServer(usersCol),
+    getCountFromServer(triggerAppsCol),
+    getAggregateFromServer(dailyLogsCol, {
+      g: sum('gambling_count'),
+      r: sum('resisted_count'),
+    }),
+  ]);
   return {
-    totalUsers: users?.c ?? 0,
-    triggerAppCount: apps?.c ?? 0,
-    totalGamblingAttempts: totals?.g ?? 0,
-    totalResisted: totals?.r ?? 0,
+    totalUsers: users.data().count,
+    triggerAppCount: apps.data().count,
+    totalGamblingAttempts: totals.data().g,
+    totalResisted: totals.data().r,
   };
 }
 
@@ -576,39 +468,38 @@ export async function getAdminStats(): Promise<AdminStats> {
  * Per the spec, a gambling 'proceeded' attempt increments the daily count +1.
  */
 export async function recordEvent(input: {
-  userId: number;
+  userId: string;
   appName: string;
   category: Category;
   action: EventAction;
 }): Promise<void> {
-  const db = await getDb();
   const day = todayKey();
   const now = new Date().toISOString();
 
-  await db.runAsync(
-    `INSERT INTO access_events (user_id, app_name, category, action, day, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [input.userId, input.appName, input.category, input.action, day, now]
-  );
-
-  // Ensure a daily row exists.
-  await db.runAsync('INSERT OR IGNORE INTO daily_logs (user_id, day) VALUES (?, ?)', [
-    input.userId,
+  await addDoc(accessEventsCol, {
+    user_id: input.userId,
+    app_name: input.appName,
+    category: input.category,
+    action: input.action,
     day,
-  ]);
+    created_at: now,
+  });
 
   const isGambling = input.category === 'gambling';
-  if (input.action === 'proceeded' && isGambling) {
-    await db.runAsync(
-      'UPDATE daily_logs SET gambling_count = gambling_count + 1 WHERE user_id = ? AND day = ?',
-      [input.userId, day]
-    );
-  } else if (input.action === 'resisted') {
-    await db.runAsync(
-      'UPDATE daily_logs SET resisted_count = resisted_count + 1 WHERE user_id = ? AND day = ?',
-      [input.userId, day]
-    );
-  }
+  const gambled = input.action === 'proceeded' && isGambling ? 1 : 0;
+  const resisted = input.action === 'resisted' ? 1 : 0;
+
+  // Deterministic per-user-per-day doc id makes the upsert + increment atomic.
+  await setDoc(
+    doc(dailyLogsCol, `${input.userId}_${day}`),
+    {
+      user_id: input.userId,
+      day,
+      gambling_count: increment(gambled),
+      resisted_count: increment(resisted),
+    },
+    { merge: true }
+  );
 }
 
 /**
@@ -617,86 +508,86 @@ export async function recordEvent(input: {
  * (no counters change) — this is how the activity log captures every app.
  */
 export async function recordAppOpen(
-  userId: number,
+  userId: string,
   appName: string,
   category: Category = 'other'
 ): Promise<void> {
   return recordEvent({ userId, appName, category, action: 'opened' });
 }
 
-export async function getDailyLogs(userId: number, limit = 30): Promise<DailyLog[]> {
-  const db = await getDb();
-  return db.getAllAsync<DailyLog>(
-    'SELECT * FROM daily_logs WHERE user_id = ? ORDER BY day DESC LIMIT ?',
-    [userId, limit]
-  );
+export async function getDailyLogs(userId: string, limit = 30): Promise<DailyLog[]> {
+  const snap = await getDocs(query(dailyLogsCol, where('user_id', '==', userId)));
+  return snap.docs
+    .map((d) => withId<DailyLog>(d))
+    .sort((a, b) => b.day.localeCompare(a.day))
+    .slice(0, limit);
 }
 
 export async function getRecentEvents(
-  userId: number,
+  userId: string,
   limit = 50
 ): Promise<AccessEvent[]> {
-  const db = await getDb();
-  return db.getAllAsync<AccessEvent>(
-    'SELECT * FROM access_events WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
-    [userId, limit]
+  const snap = await getDocs(
+    query(
+      accessEventsCol,
+      where('user_id', '==', userId),
+      orderBy('created_at', 'desc'),
+      qLimit(limit)
+    )
   );
+  return snap.docs.map((d) => withId<AccessEvent>(d));
 }
 
 /**
  * Permanently delete a single user's activity history
  * (daily rollups + individual events). Settings and account are untouched.
  */
-export async function clearUserLogs(userId: number): Promise<void> {
-  const db = await getDb();
-  await db.runAsync('DELETE FROM access_events WHERE user_id = ?', [userId]);
-  await db.runAsync('DELETE FROM daily_logs WHERE user_id = ?', [userId]);
+export async function clearUserLogs(userId: string): Promise<void> {
+  for (const col of [accessEventsCol, dailyLogsCol]) {
+    const snap = await getDocs(query(col, where('user_id', '==', userId)));
+    // Firestore batches cap at 500 ops.
+    for (let i = 0; i < snap.docs.length; i += 450) {
+      const batch = writeBatch(db);
+      for (const d of snap.docs.slice(i, i + 450)) batch.delete(d.ref);
+      await batch.commit();
+    }
+  }
 }
 
 /* --------------------------- derived stats ------------------------- */
 
-export async function getStats(userId: number): Promise<Stats> {
-  const db = await getDb();
+export async function getStats(userId: string): Promise<Stats> {
+  const [logsSnap, blockedSnap, user] = await Promise.all([
+    getDocs(query(dailyLogsCol, where('user_id', '==', userId))),
+    // "Urges blocked": every time a casino/gambling app was opened and the
+    // reminder stepped in (whether the user resisted or proceeded).
+    getCountFromServer(
+      query(
+        accessEventsCol,
+        where('user_id', '==', userId),
+        where('category', '==', 'gambling'),
+        where('action', 'in', ['resisted', 'proceeded'])
+      )
+    ),
+    getUserById(userId),
+  ]);
 
-  const totals = await db.getFirstAsync<{
-    total_resisted: number;
-    total_gambling: number;
-  }>(
-    `SELECT
-       COALESCE(SUM(resisted_count), 0) AS total_resisted,
-       COALESCE(SUM(gambling_count), 0) AS total_gambling
-     FROM daily_logs WHERE user_id = ?`,
-    [userId]
-  );
-  const totalResisted = totals?.total_resisted ?? 0;
-  const totalGambling = totals?.total_gambling ?? 0;
+  const logs = logsSnap.docs
+    .map((d) => withId<DailyLog>(d))
+    .sort((a, b) => b.day.localeCompare(a.day));
 
-  // "Urges blocked": every time a casino/gambling app was opened and the
-  // reminder stepped in (whether the user resisted or proceeded).
-  const blocked = await db.getFirstAsync<{ c: number }>(
-    `SELECT COUNT(*) AS c FROM access_events
-      WHERE user_id = ? AND category = 'gambling'
-        AND action IN ('resisted', 'proceeded')`,
-    [userId]
-  );
-  const urgesBlocked = blocked?.c ?? 0;
+  const totalResisted = logs.reduce((n, l) => n + (l.resisted_count || 0), 0);
+  const totalGambling = logs.reduce((n, l) => n + (l.gambling_count || 0), 0);
+  const urgesBlocked = blockedSnap.data().count;
 
   // Bet-free streak: consecutive days (ending today) with zero gambling attempts.
-  const logs = await db.getAllAsync<{ day: string; gambling_count: number }>(
-    'SELECT day, gambling_count FROM daily_logs WHERE user_id = ? ORDER BY day DESC',
-    [userId]
-  );
   const map = new Map(logs.map((l) => [l.day, l.gambling_count]));
 
   // Cap the streak at the account's signup day — you can't be bet-free before
   // you started using the app. Without this, days with no log default to 0
   // gambling and every prior day (up to a year) counts as bet-free, so a brand
   // new account immediately shows a misleadingly large, fixed-looking number.
-  const userRow = await db.getFirstAsync<{ created_at: string }>(
-    'SELECT created_at FROM users WHERE id = ?',
-    [userId]
-  );
-  const signupKey = userRow ? todayKey(new Date(userRow.created_at)) : todayKey();
+  const signupKey = user ? todayKey(new Date(user.created_at)) : todayKey();
 
   let streak = 0;
   const cursor = new Date();

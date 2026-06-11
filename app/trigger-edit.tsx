@@ -86,7 +86,7 @@ export default function TriggerEdit() {
     category?: string;
   }>();
 
-  const editingId = first(params.id) ? Number(first(params.id)) : null;
+  const editingId = first(params.id) || null;
   const [name, setName] = useState(first(params.name));
   const [pkg, setPkg] = useState(first(params.pkg));
   const [category, setCategory] = useState<Category>(
