@@ -17,6 +17,11 @@ import { useTheme } from '../src/context/ThemeContext';
 import { PrimaryButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getSettings } from '../src/db/database';
+import {
+  detectionAvailable,
+  hasUsageAccess,
+  hasOverlayPermission,
+} from '../src/native/detector';
 
 export default function Login() {
   const router = useRouter();
@@ -41,9 +46,16 @@ export default function Login() {
       if (res.ok && res.role === 'admin') {
         router.replace('/admin');
       } else if (res.ok && res.role === 'user') {
-        // Send the user through the monitoring-permission flow until they grant it.
+        // Send the user through the monitoring-permission flow until they grant
+        // it. The cloud profile remembers consent across installs, but the
+        // device grants reset on every fresh install — so also check the
+        // actual OS permissions and re-ask when any are missing.
         const settings = await getSettings(res.user.id);
-        router.replace(settings.monitoring_granted ? '/dashboard' : '/permission');
+        const deviceReady =
+          !detectionAvailable || (hasUsageAccess() && hasOverlayPermission());
+        router.replace(
+          settings.monitoring_granted && deviceReady ? '/dashboard' : '/permission'
+        );
       } else if (res.reason === 'no-account') {
         setError('No account found for that email.');
       } else {

@@ -1,7 +1,25 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  AppState,
+  Platform,
+  PermissionsAndroid,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TextInput, IconButton, Snackbar, Portal, Dialog, Button } from 'react-native-paper';
+import {
+  TextInput,
+  IconButton,
+  Snackbar,
+  Portal,
+  Dialog,
+  Button,
+  Switch,
+} from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, Redirect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,7 +29,23 @@ import { useTheme } from '../src/context/ThemeContext';
 import { parsePhotos, serializePhotos } from '../src/photos';
 import { PrimaryButton, OutlineButton } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
-import { getSettings, updateSettings, clearUserLogs } from '../src/db/database';
+import {
+  getSettings,
+  updateSettings,
+  clearUserLogs,
+  setMonitoringGranted,
+  getEnabledTriggerApps,
+} from '../src/db/database';
+import {
+  detectionAvailable,
+  hasUsageAccess,
+  openUsageAccessSettings,
+  hasOverlayPermission,
+  openOverlaySettings,
+  startMonitoring,
+  stopMonitoring,
+  configureReminder,
+} from '../src/native/detector';
 
 const THEMES: ReadonlyArray<{ mode: ThemeMode; label: string }> = [
   { mode: 'navy', label: 'Navy' },
@@ -39,6 +73,13 @@ export default function Settings() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [toast, setToast] = useState('');
 
+  // Live status of every access the app needs, so the user can re-allow or
+  // remove each one from here.
+  const [monitoringOn, setMonitoringOn] = useState(false);
+  const [usageOk, setUsageOk] = useState(!detectionAvailable);
+  const [overlayOk, setOverlayOk] = useState(!detectionAvailable);
+  const [notifOk, setNotifOk] = useState(true);
+
   useEffect(() => {
     if (user)
       getSettings(user.id).then((s) => {
@@ -46,8 +87,40 @@ export default function Settings() {
         setMessage(s.family_message);
         setPhotos(parsePhotos(s.motivation_photo));
         setCountdown(s.countdown_seconds);
+        setMonitoringOn(!!s.monitoring_granted);
       });
   }, [user]);
+
+  const refreshPerms = useCallback(() => {
+    if (detectionAvailable) {
+      setUsageOk(hasUsageAccess());
+      setOverlayOk(hasOverlayPermission());
+    }
+    // POST_NOTIFICATIONS is a runtime permission only on Android 13+.
+    if (Platform.OS === 'android' && (Platform.Version as number) >= 33) {
+      PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS)
+        .then(setNotifOk)
+        .catch(() => {});
+    }
+  }, []);
+
+  // Re-check whenever we come back from a system-settings screen.
+  useEffect(() => {
+    refreshPerms();
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') refreshPerms();
+    });
+    return () => sub.remove();
+  }, [refreshPerms]);
+
+  const requestNotif = useCallback(async () => {
+    if (Platform.OS === 'android' && (Platform.Version as number) >= 33) {
+      await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+      );
+    }
+    refreshPerms();
+  }, [refreshPerms]);
 
   if (!user) return <Redirect href="/login" />;
 
@@ -88,6 +161,30 @@ export default function Settings() {
     setToast('History logs cleared.');
   };
 
+  /** Master monitoring consent: off stops the watcher, on re-arms it. */
+  const onToggleMonitoring = async (next: boolean) => {
+    if (!next) {
+      setMonitoringOn(false);
+      await setMonitoringGranted(user.id, false);
+      if (detectionAvailable) stopMonitoring();
+      setToast('Monitoring turned off — reminders won’t trigger.');
+      return;
+    }
+    // Can't monitor without the usage-access grant — run the grant flow first.
+    if (detectionAvailable && !hasUsageAccess()) {
+      router.push('/permission');
+      return;
+    }
+    setMonitoringOn(true);
+    await setMonitoringGranted(user.id, true);
+    if (detectionAvailable) {
+      const apps = await getEnabledTriggerApps();
+      startMonitoring(apps);
+      configureReminder(member.trim() || 'mama', message.trim(), countdown, photos);
+    }
+    setToast('Monitoring is on.');
+  };
+
   const inputProps = {
     mode: 'outlined' as const,
     outlineColor: colors.outline,
@@ -125,6 +222,53 @@ export default function Settings() {
             <Text style={styles.accEmail}>{user.email}</Text>
           </View>
         </View>
+
+        <Text style={styles.section}>Permissions</Text>
+        <Text style={styles.help}>
+          The access BetFree needs to detect and remind. Tap Change to allow or
+          remove it in system settings.
+        </Text>
+
+        {/* Master in-app consent switch */}
+        <View style={styles.permRow}>
+          <MaterialCommunityIcons
+            name="shield-account"
+            size={20}
+            color={monitoringOn ? colors.teal : colors.textMuted}
+          />
+          <View style={styles.permBody}>
+            <Text style={styles.permName}>App monitoring</Text>
+            <Text style={[styles.permState, { color: monitoringOn ? colors.success : colors.danger }]}>
+              {monitoringOn ? 'on' : 'off'}
+            </Text>
+          </View>
+          <Switch value={monitoringOn} onValueChange={onToggleMonitoring} color={colors.teal} />
+        </View>
+
+        {detectionAvailable && (
+          <>
+            <PermStatusRow
+              icon="eye-check-outline"
+              label="Usage access"
+              granted={usageOk}
+              onChange={openUsageAccessSettings}
+            />
+            <PermStatusRow
+              icon="application-outline"
+              label="Display over other apps"
+              granted={overlayOk}
+              onChange={openOverlaySettings}
+            />
+          </>
+        )}
+        {Platform.OS === 'android' && (Platform.Version as number) >= 33 && (
+          <PermStatusRow
+            icon="bell-outline"
+            label="Notifications"
+            granted={notifOk}
+            onChange={requestNotif}
+          />
+        )}
 
         <Text style={styles.section}>Appearance</Text>
         <Text style={styles.help}>Pick the color theme for the app.</Text>
@@ -288,6 +432,45 @@ export default function Settings() {
   );
 }
 
+/** One device-permission line: status (allowed / not allowed) + Change button. */
+function PermStatusRow({
+  icon,
+  label,
+  granted,
+  onChange,
+}: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  label: string;
+  granted: boolean;
+  onChange: () => void;
+}) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  return (
+    <View style={styles.permRow}>
+      <MaterialCommunityIcons
+        name={icon}
+        size={20}
+        color={granted ? colors.teal : colors.textMuted}
+      />
+      <View style={styles.permBody}>
+        <Text style={styles.permName}>{label}</Text>
+        <Text style={[styles.permState, { color: granted ? colors.success : colors.danger }]}>
+          {granted ? 'allowed' : 'not allowed'}
+        </Text>
+      </View>
+      <Pressable
+        onPress={onChange}
+        android_ripple={{ color: 'rgba(47,227,168,0.25)', borderless: false }}
+        style={styles.permBtn}
+        accessibilityRole="button"
+      >
+        <Text style={styles.permBtnText}>{granted ? 'Change' : 'Allow'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const makeStyles = (colors: Palette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
@@ -333,6 +516,27 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginBottom: spacing(1),
   },
   input: { backgroundColor: colors.surface, marginBottom: spacing(1) },
+  permRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1.5),
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing(1.75),
+    marginBottom: spacing(1),
+  },
+  permBody: { flex: 1 },
+  permName: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  permState: { fontSize: 12, fontWeight: '700', marginTop: 1 },
+  permBtn: {
+    borderWidth: 1.5,
+    borderColor: colors.teal,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing(2),
+    paddingVertical: spacing(0.75),
+    overflow: 'hidden',
+  },
+  permBtnText: { color: colors.teal, fontWeight: '700', fontSize: 13 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing(1.5), marginTop: spacing(0.5) },
   thumbWrap: { width: 84, height: 84 },
   thumb: { width: 84, height: 84, borderRadius: radius.md },

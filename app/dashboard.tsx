@@ -21,6 +21,7 @@ import {
 } from '../src/db/database';
 import {
   detectionAvailable,
+  hasUsageAccess,
   startMonitoring,
   configureReminder,
   getPendingOpens,
@@ -88,7 +89,10 @@ export default function Dashboard() {
       let active = true;
       if (user) {
         getSettings(user.id).then((s) => {
-          if (active) setMonitoringOn(!!s.monitoring_granted);
+          // Consent alone isn't enough — a reinstall keeps the cloud flag but
+          // resets the device's usage-access grant, so check both.
+          const deviceReady = !detectionAvailable || hasUsageAccess();
+          if (active) setMonitoringOn(!!s.monitoring_granted && deviceReady);
         });
         syncDetection(user.id).finally(() => {
           if (active) refresh(user.id);
