@@ -26,3 +26,8 @@ project_details.txt
 .claude
 # release artifacts (uploaded to GitHub Releases, not committed)
 /release/
+
+# local env (Firebase credentials live here, never committed)
+.env
+.env.*
+!.env.example

@@ -15,9 +15,9 @@ import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
-import { PrimaryButton } from '../src/components/ui';
+import { PrimaryButton, navOnce } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
-import { addSuggestion, getUserSuggestions } from '../src/db/database';
+import { addSuggestion, getUserSuggestions, getTriggerApps } from '../src/db/database';
 import {
   getInstalledApps,
   detectionAvailable,
@@ -41,14 +41,17 @@ function useStyles() {
 }
 
 // Memoized row (collapsable={false} keeps Android from blanking rows on a
-// sibling commit when another row is selected).
+// sibling commit when another row is selected). Apps already on the admin's
+// global blocked list are shown disabled — no need to suggest them again.
 const AppRow = React.memo(function AppRow({
   item,
   selected,
+  blocked,
   onPick,
 }: {
   item: InstalledApp;
   selected: boolean;
+  blocked: boolean;
   onPick: (a: InstalledApp) => void;
 }) {
   const { colors } = useTheme();
@@ -57,18 +60,20 @@ const AppRow = React.memo(function AppRow({
     <Pressable
       onPress={() => onPick(item)}
       android_ripple={{ color: 'rgba(255,255,255,0.12)' }}
-      style={[styles.appRow, selected && styles.appRowSelected]}
+      style={[styles.appRow, selected && styles.appRowSelected, blocked && styles.appRowBlocked]}
       collapsable={false}
+      disabled={blocked}
     >
       <MaterialCommunityIcons
-        name={selected ? 'check-circle' : 'cellphone'}
+        name={blocked ? 'shield-check' : selected ? 'check-circle' : 'cellphone'}
         size={22}
-        color={selected ? colors.teal : colors.textMuted}
+        color={blocked ? colors.success : selected ? colors.teal : colors.textMuted}
       />
       <View style={{ flex: 1, marginLeft: spacing(1.5) }} collapsable={false}>
-        <Text style={styles.appLabel}>{item.label}</Text>
+        <Text style={[styles.appLabel, blocked && styles.appLabelBlocked]}>{item.label}</Text>
         <Text style={styles.appPkg}>{item.packageName}</Text>
       </View>
+      {blocked && <Text style={styles.blockedTag}>already blocked</Text>}
     </Pressable>
   );
 });
@@ -90,11 +95,32 @@ export default function SuggestApp() {
   const [busy, setBusy] = useState(false);
   const [mine, setMine] = useState<AppSuggestion[]>([]);
 
+  // Package names + app names already on the admin's global list — those are
+  // disabled in the picker so users can't suggest something already blocked.
+  const [blockedKeys, setBlockedKeys] = useState<Set<string>>(new Set());
+
   const loadMine = useCallback(() => {
-    if (user) getUserSuggestions(user.id).then(setMine);
+    if (user) getUserSuggestions(user.id).then(setMine).catch(() => {});
+    getTriggerApps()
+      .then((list) => {
+        const keys = new Set<string>();
+        for (const t of list) {
+          if (t.package_name.trim()) keys.add(t.package_name.trim().toLowerCase());
+          keys.add(t.app_name.trim().toLowerCase());
+        }
+        setBlockedKeys(keys);
+      })
+      .catch(() => {});
   }, [user]);
 
   useFocusEffect(useCallback(() => loadMine(), [loadMine]));
+
+  const isBlocked = useCallback(
+    (a: InstalledApp) =>
+      blockedKeys.has(a.packageName.trim().toLowerCase()) ||
+      blockedKeys.has(a.label.trim().toLowerCase()),
+    [blockedKeys]
+  );
 
   // Load installed apps after the screen transition (with a loader).
   useEffect(() => {
@@ -131,6 +157,13 @@ export default function SuggestApp() {
       setError('Please select an app below first.');
       return;
     }
+    if (
+      blockedKeys.has(pickedName.trim().toLowerCase()) ||
+      (pickedPkg.trim() && blockedKeys.has(pickedPkg.trim().toLowerCase()))
+    ) {
+      setError('That app is already on the blocked list.');
+      return;
+    }
     setError('');
     setBusy(true);
     try {
@@ -147,7 +180,7 @@ export default function SuggestApp() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <IconButton icon="arrow-left" size={22} iconColor={colors.text} onPress={() => router.back()} />
+        <IconButton icon="arrow-left" size={22} iconColor={colors.text} onPress={() => navOnce(() => router.back())} />
         <Text style={styles.title}>Suggest an App</Text>
         <View style={{ width: 40 }} />
       </View>
@@ -230,6 +263,7 @@ export default function SuggestApp() {
                 key={item.packageName}
                 item={item}
                 selected={item.packageName === pickedPkg}
+                blocked={isBlocked(item)}
                 onPick={pick}
               />
             ))
@@ -329,7 +363,15 @@ const makeStyles = (colors: Palette) =>
       borderColor: 'transparent',
     },
     appRowSelected: { borderColor: colors.teal },
+    appRowBlocked: { opacity: 0.55 },
     appLabel: { color: colors.text, fontSize: 15, fontWeight: '600' },
+    appLabelBlocked: { color: colors.textMuted },
+    blockedTag: {
+      color: colors.success,
+      fontSize: 11,
+      fontWeight: '700',
+      marginLeft: spacing(1),
+    },
     appPkg: { color: colors.textFaint, fontSize: 12, marginTop: 1 },
     section: {
       color: colors.textFaint,

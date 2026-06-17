@@ -1,11 +1,11 @@
-/** Shared domain types for BetFree. */
+/** Shared domain types for BetFree. All ids are Firestore document ids. */
 
 export type Category = 'gambling' | 'financial' | 'other';
 export type EventAction = 'resisted' | 'proceeded' | 'opened';
 export type Role = 'user' | 'admin';
 
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   password: string;
@@ -13,7 +13,7 @@ export interface User {
 }
 
 export interface Admin {
-  id: number;
+  id: string;
   name: string;
   email: string;
   password: string;
@@ -22,7 +22,7 @@ export interface Admin {
 
 /** Global master list of apps the system watches (managed by the admin). */
 export interface TriggerApp {
-  id: number;
+  id: string;
   app_name: string;
   package_name: string; // Android package id, e.g. com.globe.gcash.android
   category: Category;
@@ -41,7 +41,7 @@ export interface DetectedOpen {
 }
 
 export interface UserSettings {
-  user_id: number;
+  user_id: string;
   family_member: string;
   family_message: string;
   countdown_seconds: number;
@@ -53,12 +53,13 @@ export type SuggestionStatus = 'pending' | 'approved' | 'rejected';
 
 /** A user-submitted app-to-block, awaiting admin review. */
 export interface AppSuggestion {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   app_name: string;
   package_name: string;
   category: Category;
   status: SuggestionStatus;
+  notified?: number; // 0 | 1 — user has been told this suggestion was resolved
   created_at: string;
 }
 
@@ -69,8 +70,8 @@ export interface SuggestionWithUser extends AppSuggestion {
 }
 
 export interface AccessEvent {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   app_name: string;
   category: Category;
   action: EventAction;
@@ -79,8 +80,8 @@ export interface AccessEvent {
 }
 
 export interface DailyLog {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   day: string;
   gambling_count: number;
   resisted_count: number;

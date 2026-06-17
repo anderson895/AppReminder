@@ -33,7 +33,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function persistSession(role: 'user' | 'admin', id: number): Promise<void> {
+async function persistSession(role: 'user' | 'admin', id: string): Promise<void> {
   try {
     await AsyncStorage.setItem(SESSION_KEY, JSON.stringify({ role, id }));
   } catch {
@@ -60,12 +60,13 @@ export function AuthProvider({
       try {
         const raw = await AsyncStorage.getItem(SESSION_KEY);
         if (raw) {
-          const { role, id } = JSON.parse(raw) as { role: string; id: number };
+          const { role, id } = JSON.parse(raw) as { role: string; id: string | number };
+          // String(id): sessions saved by the old offline build stored numbers.
           if (role === 'admin') {
-            const a = await getAdminById(id);
+            const a = await getAdminById(String(id));
             if (active && a) setAdmin(a);
           } else {
-            const u = await getUserById(id);
+            const u = await getUserById(String(id));
             if (active && u) setUser(u);
           }
         }

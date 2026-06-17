@@ -7,7 +7,7 @@ import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
-import { OutlineButton } from '../src/components/ui';
+import { OutlineButton, navOnce } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import { getEnabledTriggerApps, recordAppOpen } from '../src/db/database';
 import type { TriggerApp } from '../src/types';
@@ -56,22 +56,25 @@ export default function Apps() {
     );
     setOtherApp('');
     if (match) {
-      router.push({
-        pathname: '/reminder',
-        params: { app: match.app_name, category: match.category },
-      });
+      navOnce(() =>
+        router.push({
+          pathname: '/reminder',
+          params: { app: match.app_name, category: match.category },
+        })
+      );
       return;
     }
     await recordAppOpen(user.id, name, 'other');
     setToast(`Logged "${name}" as opened.`);
   };
 
-  const onSimulate = (app: TriggerApp) => {
-    router.push({
-      pathname: '/reminder',
-      params: { app: app.app_name, category: app.category },
-    });
-  };
+  const onSimulate = (app: TriggerApp) =>
+    navOnce(() =>
+      router.push({
+        pathname: '/reminder',
+        params: { app: app.app_name, category: app.category },
+      })
+    );
 
   const gambling = apps.filter((a) => a.category === 'gambling');
   const financial = apps.filter((a) => a.category === 'financial');
@@ -119,7 +122,7 @@ export default function Apps() {
           icon="arrow-left"
           size={22}
           iconColor={colors.text}
-          onPress={() => router.back()}
+          onPress={() => navOnce(() => router.back())}
         />
         <Text style={styles.title}>monitored apps</Text>
         <View style={{ width: 40 }} />

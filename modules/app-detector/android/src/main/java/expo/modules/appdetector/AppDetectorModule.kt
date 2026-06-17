@@ -79,6 +79,12 @@ class AppDetectorModule : Module() {
       for (ri in activities) {
         val pkg = ri.activityInfo.packageName
         if (pkg == context.packageName) continue
+        // Skip Chrome WebAPKs / PWAs ("Add to Home Screen" websites). Their
+        // package name is a per-device random hash (org.chromium.webapk.<hash>),
+        // so an entry picked here would only ever match the admin's own phone —
+        // never another user's. Only real, store-installed apps have a stable
+        // package name that works as a global trigger across all devices.
+        if (pkg.startsWith("org.chromium.webapk.")) continue
         if (!seen.add(pkg)) continue
         val label = try {
           ri.loadLabel(pm).toString()

@@ -8,18 +8,20 @@ import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { parsePhotos } from '../src/photos';
-import { OutlineButton, StatTile } from '../src/components/ui';
+import { OutlineButton, StatTile, navOnce } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import {
   getStats,
   getSettings,
   getEnabledTriggerApps,
+  subscribeEnabledTriggerApps,
   recordEvent,
   getUnnotifiedSuggestions,
   markSuggestionsNotified,
 } from '../src/db/database';
 import {
   detectionAvailable,
+  hasUsageAccess,
   startMonitoring,
   configureReminder,
   getPendingOpens,
@@ -40,7 +42,7 @@ export default function Dashboard() {
   // Drain the native monitor's buffer into the activity logs, (re)start the
   // service with the latest trigger list, and surface any pending reminder.
   const syncDetection = useCallback(
-    async (userId: number) => {
+    async (userId: string) => {
       if (!detectionAvailable) return;
       const settings = await getSettings(userId);
       if (!settings.monitoring_granted) return;
@@ -78,7 +80,7 @@ export default function Dashboard() {
     [router]
   );
 
-  const refresh = useCallback((userId: number) => {
+  const refresh = useCallback((userId: string) => {
     getStats(userId).then(setStats);
   }, []);
 
@@ -87,7 +89,10 @@ export default function Dashboard() {
       let active = true;
       if (user) {
         getSettings(user.id).then((s) => {
-          if (active) setMonitoringOn(!!s.monitoring_granted);
+          // Consent alone isn't enough — a reinstall keeps the cloud flag but
+          // resets the device's usage-access grant, so check both.
+          const deviceReady = !detectionAvailable || hasUsageAccess();
+          if (active) setMonitoringOn(!!s.monitoring_granted && deviceReady);
         });
         syncDetection(user.id).finally(() => {
           if (active) refresh(user.id);
@@ -144,6 +149,21 @@ export default function Dashboard() {
     return () => sub.remove();
   }, [user, syncDetection, refresh]);
 
+  // Online sync: whenever the admin edits the global trigger list — from any
+  // device — Firestore pushes the change here and we re-arm the native monitor
+  // immediately, without waiting for the next app open.
+  useEffect(() => {
+    if (!user || !detectionAvailable) return;
+    const unsubscribe = subscribeEnabledTriggerApps((apps) => {
+      getSettings(user.id)
+        .then((s) => {
+          if (s.monitoring_granted) startMonitoring(apps);
+        })
+        .catch(() => {});
+    });
+    return () => unsubscribe();
+  }, [user]);
+
   if (!user) return <Redirect href="/login" />;
 
   const firstName = (user.name || '').split(' ')[0] || 'friend';
@@ -157,7 +177,7 @@ export default function Dashboard() {
           icon="cog-outline"
           size={22}
           iconColor={colors.textMuted}
-          onPress={() => router.push('/settings')}
+          onPress={() => navOnce(() => router.push('/settings'))}
           style={styles.gear}
         />
       </View>
@@ -167,7 +187,7 @@ export default function Dashboard() {
         {!monitoringOn && (
           <Pressable
             style={styles.banner}
-            onPress={() => router.push('/permission')}
+            onPress={() => navOnce(() => router.push('/permission'))}
             android_ripple={{ color: 'rgba(0,0,0,0.12)', borderless: false }}
             accessibilityRole="button"
           >
@@ -215,7 +235,7 @@ export default function Dashboard() {
         {/* Suggest an app to block (goes to admin for review) */}
         <Pressable
           style={styles.suggestRow}
-          onPress={() => router.push('/suggest-app')}
+          onPress={() => navOnce(() => router.push('/suggest-app'))}
           android_ripple={{ color: 'rgba(255,255,255,0.08)', borderless: false }}
           accessibilityRole="button"
         >

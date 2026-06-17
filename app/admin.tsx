@@ -14,7 +14,7 @@ import { useRouter, useFocusEffect, Redirect } from 'expo-router';
 
 import { radius, spacing, type Palette } from '../src/theme';
 import { useTheme } from '../src/context/ThemeContext';
-import { PrimaryButton, StatTile } from '../src/components/ui';
+import { PrimaryButton, StatTile, navOnce } from '../src/components/ui';
 import { useAuth } from '../src/context/AuthContext';
 import {
   getTriggerApps,
@@ -41,6 +41,10 @@ export default function Admin() {
   const [toDelete, setToDelete] = useState<TriggerApp | null>(null);
   const [toast, setToast] = useState('');
 
+  // One admin action at a time — repeat taps while the network call is still
+  // running would otherwise run it twice.
+  const [acting, setActing] = useState(false);
+
   const load = useCallback(() => {
     getTriggerApps().then(setApps);
     getAdminStats().then(setStats);
@@ -55,25 +59,33 @@ export default function Admin() {
 
   if (!admin) return <Redirect href="/login" />;
 
-  const openAdd = () => router.push('/trigger-edit');
+  // navOnce: a slow tap response makes users tap again — without the guard the
+  // edit/add screen stacks twice (or more).
+  const openAdd = () => navOnce(() => router.push('/trigger-edit'));
 
   const openEdit = (app: TriggerApp) =>
-    router.push({
-      pathname: '/trigger-edit',
-      params: {
-        id: String(app.id),
-        name: app.app_name,
-        pkg: app.package_name,
-        category: app.category,
-      },
-    });
+    navOnce(() =>
+      router.push({
+        pathname: '/trigger-edit',
+        params: {
+          id: String(app.id),
+          name: app.app_name,
+          pkg: app.package_name,
+          category: app.category,
+        },
+      })
+    );
 
   const onConfirmDelete = async () => {
-    if (toDelete) {
+    if (!toDelete || acting) return;
+    setActing(true);
+    try {
       await deleteTriggerApp(toDelete.id);
       setToast('App removed.');
       setToDelete(null);
       load();
+    } finally {
+      setActing(false);
     }
   };
 
@@ -83,15 +95,27 @@ export default function Admin() {
   };
 
   const onApprove = async (s: SuggestionWithUser) => {
-    await approveSuggestion(s.id);
-    setToast(`Added ${s.app_name} to the blocked list.`);
-    load();
+    if (acting) return;
+    setActing(true);
+    try {
+      await approveSuggestion(s.id);
+      setToast(`Added ${s.app_name} to the blocked list.`);
+      load();
+    } finally {
+      setActing(false);
+    }
   };
 
   const onReject = async (s: SuggestionWithUser) => {
-    await rejectSuggestion(s.id);
-    setToast('Suggestion rejected.');
-    load();
+    if (acting) return;
+    setActing(true);
+    try {
+      await rejectSuggestion(s.id);
+      setToast('Suggestion rejected.');
+      load();
+    } finally {
+      setActing(false);
+    }
   };
 
   const onLogout = () => {

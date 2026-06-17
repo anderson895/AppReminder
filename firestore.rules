@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // BetFree handles its own accounts inside the app (no Firebase Auth),
+    // so the SDK connects unauthenticated and the rules must allow access.
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
