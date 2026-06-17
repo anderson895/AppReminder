@@ -1,7 +1,7 @@
 # BetFree
 
 A gambling-app reminder mobile application built with **Expo (React Native) + TypeScript**,
-**expo-router**, **React Native Paper**, and **SQLite (expo-sqlite)**.
+**expo-router**, **React Native Paper**, and **Cloud Firestore** (online backend).
 
 BetFree asks you to pause before opening gambling and financial apps (GCash, Maya, etc.).
 Before access is granted it shows a friction reminder — a message from a loved one — and a
@@ -9,8 +9,9 @@ countdown timer, then logs every detected attempt under your account.
 
 ## Features
 
-- **Login & registration** — accounts stored locally in SQLite; reminder features activate
-  only after sign-in. Registration requires agreeing to the **Terms and Conditions**.
+- **Login & registration** — accounts stored in **Cloud Firestore**, so the same account and
+  trigger-app list are shared across every device; reminder features activate only after
+  sign-in. Registration requires agreeing to the **Terms and Conditions**.
 - **Monitoring consent** — after registering or logging in, users are taken to a
   permission screen that explains and requests app-monitoring access (Usage access +
   Display over other apps). In Expo Go this records in-app consent; in a native dev build
@@ -21,6 +22,12 @@ countdown timer, then logs every detected attempt under your account.
   users and gambling hits. Regular users see this list read-only.
   - Default admin: **`admin@gmail.com`** / **`admin123`** (seeded on first launch;
     log in on the normal login screen).
+  - Trigger apps are matched by **package name**, so only **real, store-installed apps**
+    (which have a stable package name across devices) work as triggers. Chrome
+    WebAPKs / PWAs ("Add to Home Screen" websites) have a per-device random package
+    name (`org.chromium.webapk.<hash>`), so they would only ever match the admin's own
+    phone — these are **filtered out of the installed-app picker**. Website-only gambling
+    that opens in a browser tab can't be caught by package-name detection.
 - **Monitored apps** — gambling (Online Casino, Sports Betting, eBingo) and financial
   (GCash, Maya, GrabPay) apps, defined centrally by the admin.
 - **Friction pop-up** — a personal message ("from mama") shown before a monitored app opens,
@@ -39,7 +46,7 @@ countdown timer, then logs every detected attempt under your account.
 | Language       | TypeScript (strict)               |
 | Navigation     | expo-router v6 (file-based)       |
 | UI             | React Native Paper + custom theme |
-| Local database | expo-sqlite (async API)           |
+| Backend / data | Cloud Firestore (online)          |
 
 > Targets **Expo SDK 54** so it runs in the current Expo Go client (SDK 54).
 
@@ -69,7 +76,8 @@ app/                 # expo-router routes
 src/
   theme.ts           # design tokens from the reference mockups
   types.ts           # shared domain types
-  db/database.ts     # SQLite schema + typed queries
+  db/firebase.ts     # Firebase app + Firestore init
+  db/database.ts     # Firestore collections + typed queries
   context/AuthContext.tsx
   components/ui.tsx  # PrimaryButton, OutlineButton, StatTile, BrandHeader
 ```
@@ -78,16 +86,17 @@ src/
 
 Detection runs for real via a local Expo native module (`modules/app-detector`, Kotlin):
 a foreground `Service` polls `UsageStatsManager` to learn which app is in the foreground.
-When a watched app opens, BetFree draws a **reminder pop-up card** over it via a plain
-`SYSTEM_ALERT_WINDOW` overlay (with "Not now" / "Continue anyway" buttons — it does not
-hard-block the app). If the overlay permission isn't granted it falls back to a **heads-up
-notification**. No accessibility service is used, so it installs without the Play Protect
-block. This requires a **dev/standalone build** (not Expo Go) and the user grants **Usage
-access** + **Display over other apps**.
+When a watched (trigger) app opens, BetFree brings up a full-screen **`ReminderActivity`
+friction card** over it (with "I don't need to open this" / "continue" buttons — it does not
+hard-block the app). The watched app is merely backgrounded, so there's no overlay for
+banking apps (e.g. GCash) to flag as tap-jacking. To satisfy the Android 14+
+background-activity-launch rule, the service briefly adds a 1×1 transparent overlay
+(`SYSTEM_ALERT_WINDOW`) just long enough to launch the activity. If the overlay permission
+isn't granted it falls back to a **heads-up notification**. No accessibility service is used,
+so it installs without the Play Protect block. This requires a **dev/standalone build**
+(not Expo Go) and the user grants **Usage access** + **Display over other apps**.
 
-> Apps that hide overlays (`setHideOverlayWindows`, e.g. GCash/Maya/banks) can suppress the
-> pop-up; for those the reminder simply won't appear — a deliberate trade-off to avoid the
-> accessibility service that Play Protect blocks.
-
-> **Fully offline:** BetFree makes no network requests. All user data lives in local
-> SQLite on the device and nothing is uploaded anywhere.
+> **Fully online:** all app data (accounts, the global trigger-app list, suggestions, and
+> activity logs) lives in **Cloud Firestore**, so whatever the admin blocks reflects on every
+> user's device. Firebase config is supplied via `EXPO_PUBLIC_FIREBASE_*` environment
+> variables (`.env` locally; EAS environment variables for builds).
